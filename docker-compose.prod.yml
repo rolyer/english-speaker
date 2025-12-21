@@ -17,7 +17,9 @@ services:
       - ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
       - OLLAMA_BASE_URL=http://ollama:11434
-      - DEFAULT_MODEL=${DEFAULT_MODEL:-ollama}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-sk-02ab4cf141084b21a6d0a172e57332b2}
+      - DASHSCOPE_BASE_URL=${DASHSCOPE_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-qwen}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - TTS_API_KEY=${TTS_API_KEY:-}
       - STT_API_KEY=${STT_API_KEY:-}

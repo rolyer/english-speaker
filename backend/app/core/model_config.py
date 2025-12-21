@@ -20,6 +20,8 @@ class ModelConfig:
         self.default_model = settings.DEFAULT_MODEL
         self.ollama_base_url = settings.OLLAMA_BASE_URL
         self.openai_api_key = settings.OPENAI_API_KEY
+        self.dashscope_api_key = settings.DASHSCOPE_API_KEY
+        self.dashscope_base_url = settings.DASHSCOPE_BASE_URL
     
     def get_model_type(self, model_name: Optional[str] = None) -> ModelType:
         """获取模型类型"""
@@ -27,7 +29,7 @@ class ModelConfig:
         try:
             return ModelType(model.lower())
         except ValueError:
-            return ModelType.OLLAMA  # 默认使用Ollama
+            return ModelType.QWEN  # 默认使用通义千问
     
     def get_ollama_config(self) -> dict:
         """获取Ollama配置"""
@@ -44,6 +46,17 @@ class ModelConfig:
         return {
             "api_key": self.openai_api_key,
             "model": "gpt-3.5-turbo",
+            "temperature": 0.7,
+        }
+    
+    def get_qwen_config(self) -> dict:
+        """获取通义千问配置"""
+        if not self.dashscope_api_key:
+            raise ValueError("DashScope API key not configured")
+        return {
+            "api_key": self.dashscope_api_key,
+            "base_url": self.dashscope_base_url,
+            "model": "qwen-turbo",  # 或 qwen-plus, qwen-max
             "temperature": 0.7,
         }
 

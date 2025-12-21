@@ -79,7 +79,9 @@ SECRET_KEY=dev-secret-key-change-in-production
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 OLLAMA_BASE_URL=http://localhost:11434
-DEFAULT_MODEL=ollama
+DASHSCOPE_API_KEY=sk-02ab4cf141084b21a6d0a172e57332b2
+DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+DEFAULT_MODEL=qwen
 EOF
 ```
 
@@ -283,8 +285,10 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # AI模型配置
 OPENAI_API_KEY=your-openai-api-key
+DASHSCOPE_API_KEY=sk-02ab4cf141084b21a6d0a172e57332b2  # 阿里百炼API密钥
+DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1  # 阿里百炼Base URL
 OLLAMA_BASE_URL=http://localhost:11434
-DEFAULT_MODEL=ollama  # 或 openai, qwen, wenxin等
+DEFAULT_MODEL=qwen  # qwen(通义千问), ollama, openai, wenxin等
 
 # 语音服务配置
 TTS_API_KEY=your-tts-api-key

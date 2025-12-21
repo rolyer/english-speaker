@@ -83,7 +83,9 @@ cat > .env << EOF
 DATABASE_URL=sqlite:///./app.db
 SECRET_KEY=dev-secret-key-change-in-production
 OLLAMA_BASE_URL=http://localhost:11434
-DEFAULT_MODEL=ollama
+DASHSCOPE_API_KEY=sk-02ab4cf141084b21a6d0a172e57332b2
+DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+DEFAULT_MODEL=qwen
 EOF
 # 启动服务
 uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000

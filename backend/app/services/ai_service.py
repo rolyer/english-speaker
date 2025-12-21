@@ -9,6 +9,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
+
 
 class ModelRouter:
     """模型路由器"""
@@ -36,10 +38,26 @@ class ModelRouter:
                 temperature=temperature,
             )
         
+        elif model_type_enum == ModelType.QWEN:
+            # 阿里百炼兼容OpenAI API格式，使用ChatOpenAI并配置base_url
+            qwen_config = self.model_config.get_qwen_config()
+            return ChatOpenAI(
+                api_key=qwen_config["api_key"],
+                base_url=qwen_config["base_url"],
+                model=model_name or qwen_config["model"],
+                temperature=temperature,
+            )
+        
         else:
-            # 默认使用Ollama
-            logger.warning(f"Unknown model type: {model_type}, using Ollama")
-            return local_model_service.create_chat_model(model_name, temperature)
+            # 默认使用通义千问
+            logger.warning(f"Unknown model type: {model_type}, using Qwen")
+            qwen_config = self.model_config.get_qwen_config()
+            return ChatOpenAI(
+                api_key=qwen_config["api_key"],
+                base_url=qwen_config["base_url"],
+                model=model_name or qwen_config["model"],
+                temperature=temperature,
+            )
     
     async def chat(
         self,
@@ -63,7 +81,9 @@ class ModelRouter:
         """流式聊天"""
         chat_model = self.get_chat_model(model_type, model_name, temperature)
         
-        if model_type == ModelType.OLLAMA or model_type is None:
+        model_type_enum = self.model_config.get_model_type(model_type)
+        
+        if model_type_enum == ModelType.OLLAMA:
             # 使用本地服务的流式方法
             async for chunk in local_model_service.stream_chat(messages, model_name, temperature):
                 yield chunk
