@@ -44,32 +44,65 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
 ```
 
-### 开发环境设置
+## 启动应用
 
-#### 后端设置
+### 方式一：Docker启动（推荐，最简单）
+
+一键启动所有服务（包括数据库和Ollama）：
+
+```bash
+# 启动所有服务
+docker-compose up -d
+
+# 查看服务状态
+docker-compose ps
+
+# 查看日志
+docker-compose logs -f
+
+# 停止服务
+docker-compose down
+```
+
+访问地址：
+- 前端：http://localhost:3000
+- 后端API：http://localhost:8000
+- API文档：http://localhost:8000/docs
+
+### 方式二：本地开发启动
+
+分别启动前后端服务：
+
+**启动后端**：
 ```bash
 cd backend
 uv sync
 source .venv/bin/activate  # Linux/macOS
+# 创建 .env 文件
+cat > .env << EOF
+DATABASE_URL=sqlite:///./app.db
+SECRET_KEY=dev-secret-key-change-in-production
+OLLAMA_BASE_URL=http://localhost:11434
+DEFAULT_MODEL=ollama
+EOF
+# 启动服务
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-#### 前端设置
+**启动前端**（新终端）：
 ```bash
 cd frontend
-nvm install
-nvm use
+nvm install && nvm use
 npm install
+# 创建 .env 文件
+cat > .env << EOF
+VITE_API_BASE_URL=http://localhost:8000
+EOF
+# 启动服务
+npm run dev
 ```
 
-### Docker部署（推荐）
-
-```bash
-# 开发环境
-docker-compose up -d
-
-# 生产环境
-docker-compose -f docker-compose.prod.yml up -d
-```
+详细启动说明请查看 [开发环境配置文档](docs/setup.md)
 
 ## 开发文档
 
