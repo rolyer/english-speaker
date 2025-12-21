@@ -92,12 +92,16 @@
 
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
+import { useUserStore } from '@/stores/user'
 import { isMobile } from '@/utils/device'
 import { ElMessage } from 'element-plus'
 import AudioPlayer from '@/components/AudioPlayer.vue'
 
+const router = useRouter()
 const chatStore = useChatStore()
+const userStore = useUserStore()
 const inputMessage = ref('')
 const inputRef = ref(null)
 const messagesContainer = ref(null)
@@ -128,6 +132,13 @@ function formatTime(timeString) {
 async function handleSend() {
   if (!inputMessage.value.trim() || chatStore.loading) return
   
+  // 检查是否已登录
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+  
   const message = inputMessage.value.trim()
   inputMessage.value = ''
   
@@ -142,7 +153,14 @@ async function handleSend() {
     await nextTick()
     scrollToBottom()
   } catch (error) {
-    ElMessage.error('发送消息失败，请重试')
+    // 显示更详细的错误信息
+    const errorMessage = error.message || '发送消息失败，请重试'
+    if (errorMessage.includes('登录') || errorMessage.includes('未授权')) {
+      ElMessage.error(errorMessage)
+    } else {
+      ElMessage.error('发送消息失败，请重试')
+      console.error('发送消息错误:', error)
+    }
   }
   
   // 移动端：输入框失焦后重新聚焦

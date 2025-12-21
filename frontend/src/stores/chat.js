@@ -88,12 +88,18 @@ export const useChatStore = defineStore('chat', () => {
     })
     
     try {
+      // 检查token是否存在
+      const token = localStorage.getItem('token')
+      if (!token) {
+        throw new Error('未登录，请先登录')
+      }
+      
       // 使用 /api 前缀，Vite 代理会将其转发到后端
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           message,
@@ -103,7 +109,15 @@ export const useChatStore = defineStore('chat', () => {
       })
       
       if (!response.ok) {
-        throw new Error('Stream request failed')
+        // 处理401未授权错误
+        if (response.status === 401) {
+          localStorage.removeItem('token')
+          window.location.href = '/login'
+          throw new Error('登录已过期，请重新登录')
+        }
+        // 处理其他错误
+        const errorText = await response.text()
+        throw new Error(`请求失败: ${response.status} ${errorText || response.statusText}`)
       }
       
       const reader = response.body.getReader()
@@ -144,10 +158,19 @@ export const useChatStore = defineStore('chat', () => {
       return { response: fullResponse, conversation_id: currentConversationId.value }
     } catch (error) {
       console.error('流式发送消息失败:', error)
-      // 移除失败的消息
-      messages.value.pop()
-      messages.value.pop()
-      throw error
+      // 移除失败的消息（如果存在）
+      if (messages.value.length >= 2) {
+        messages.value.pop()
+        messages.value.pop()
+      }
+      
+      // 如果是401错误，已经重定向，不需要显示错误消息
+      if (error.message.includes('登录已过期') || error.message.includes('未登录')) {
+        throw error
+      }
+      
+      // 显示用户友好的错误消息
+      throw new Error(error.message || '发送消息失败，请重试')
     } finally {
       loading.value = false
     }
