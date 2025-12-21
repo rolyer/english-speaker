@@ -137,6 +137,10 @@ async function handleRegister() {
   justify-content: center;
   padding: 20px;
   background: linear-gradient(135deg, #ff6b9d 0%, #4ecdc4 100%);
+  
+  @media (max-width: 768px) {
+    padding: 16px;
+  }
 }
 
 .register-card {
