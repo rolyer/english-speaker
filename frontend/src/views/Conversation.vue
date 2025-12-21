@@ -1,7 +1,7 @@
 <template>
   <div class="conversation-page">
     <div class="conversation-header">
-      <h2>英语对话练习</h2>
+      <h2>💬 英语对话练习</h2>
       <el-select
         v-model="chatStore.selectedScenario"
         @change="handleScenarioChange"
@@ -187,10 +187,14 @@ onUnmounted(() => {
 .conversation-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: calc(100vh - 64px);
   max-width: 1200px;
   margin: 0 auto;
   background: var(--bg-light);
+  
+  @media (max-width: 768px) {
+    height: calc(100vh - 60px);
+  }
 }
 
 .conversation-header {

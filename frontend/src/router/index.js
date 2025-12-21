@@ -6,7 +6,7 @@ const routes = [
     path: '/',
     name: 'Home',
     component: () => import('@/views/Home.vue'),
-    meta: { requiresAuth: false }
+    meta: { requiresAuth: false, title: '首页' }
   },
   {
     path: '/login',
@@ -30,7 +30,7 @@ const routes = [
     path: '/dashboard',
     name: 'Dashboard',
     component: () => import('@/views/Dashboard.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, title: '学习进度' }
   },
   {
     path: '/voice',

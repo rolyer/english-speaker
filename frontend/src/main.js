@@ -21,3 +21,13 @@ app.use(ElementPlus, { locale: zhCn })
 
 app.mount('#app')
 
+// 设置页面标题
+router.beforeEach((to, from, next) => {
+  if (to.meta.title) {
+    document.title = `${to.meta.title} - 小学生英语口语训练`
+  } else {
+    document.title = '小学生英语口语训练'
+  }
+  next()
+})
+

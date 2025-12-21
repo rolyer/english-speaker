@@ -169,10 +169,15 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .dashboard-page {
-  min-height: 100vh;
+  min-height: calc(100vh - 64px);
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  
+  @media (max-width: 768px) {
+    min-height: calc(100vh - 60px);
+    padding: 16px;
+  }
 }
 
 .dashboard-header {

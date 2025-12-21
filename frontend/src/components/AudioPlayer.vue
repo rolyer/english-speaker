@@ -67,9 +67,16 @@ const isSupported = computed(() => {
 })
 
 // 监听text变化，自动播放
-watch(() => props.text, (newText) => {
-  if (newText && props.autoPlay && isSupported.value) {
-    play()
+watch(() => props.text, (newText, oldText) => {
+  // 只有当文本真正改变且不为空时才自动播放
+  if (newText && newText !== oldText && props.autoPlay && isSupported.value) {
+    // 延迟播放，确保DOM已更新
+    setTimeout(() => {
+      // 再次检查，因为可能在延迟期间用户已经手动播放
+      if (props.autoPlay && !isPlaying.value) {
+        play()
+      }
+    }, 300)
   }
 }, { immediate: false })
 
@@ -93,6 +100,7 @@ function createUtterance() {
   
   utterance.onend = () => {
     isPlaying.value = false
+    loading.value = false
     emit('end')
   }
   
@@ -107,11 +115,19 @@ function createUtterance() {
         errorMessage = '网络错误，请检查网络连接'
         break
       case 'synthesis-failed':
-        errorMessage = '语音合成失败'
+        errorMessage = '语音合成失败，请重试'
         break
       case 'synthesis-unavailable':
         errorMessage = '语音合成服务不可用'
         break
+      case 'interrupted':
+        errorMessage = '语音播放被中断'
+        break
+      case 'canceled':
+        // 用户取消，不显示错误
+        return
+      default:
+        errorMessage = `语音播放失败: ${event.error || '未知错误'}`
     }
     
     ElMessage.error(errorMessage)
@@ -136,27 +152,77 @@ function play() {
   stop()
   
   loading.value = true
-  utterance = createUtterance()
   
-  if (utterance) {
+  try {
     synth = window.speechSynthesis
-    synth.speak(utterance)
+    
+    // 某些浏览器需要取消之前的语音才能播放新的
+    synth.cancel()
+    
+    // 等待一小段时间确保浏览器准备好
+    setTimeout(() => {
+      utterance = createUtterance()
+      
+      if (utterance) {
+        try {
+          synth.speak(utterance)
+          
+          // 设置超时，如果5秒内没有开始播放，认为失败
+          const timeoutId = setTimeout(() => {
+            if (loading.value && !isPlaying.value) {
+              loading.value = false
+              ElMessage.error('语音播放超时，请重试')
+              emit('error', 'timeout')
+            }
+          }, 5000)
+          
+          // 如果开始播放，清除超时
+          const originalOnstart = utterance.onstart
+          utterance.onstart = () => {
+            clearTimeout(timeoutId)
+            if (originalOnstart) originalOnstart()
+          }
+        } catch (error) {
+          console.error('播放语音时出错:', error)
+          loading.value = false
+          ElMessage.error('语音播放失败，请重试')
+          emit('error', error)
+        }
+      } else {
+        loading.value = false
+      }
+    }, 100)
+  } catch (error) {
+    console.error('初始化语音合成时出错:', error)
+    loading.value = false
+    ElMessage.error('语音播放失败，请重试')
+    emit('error', error)
   }
 }
 
 function pause() {
-  if (synth && isPlaying.value) {
-    synth.pause()
-    isPlaying.value = false
-    emit('pause')
+  if (synth && (isPlaying.value || synth.speaking)) {
+    try {
+      synth.pause()
+      isPlaying.value = false
+      emit('pause')
+    } catch (error) {
+      console.error('暂停语音时出错:', error)
+    }
   }
 }
 
 function resume() {
-  if (synth && !isPlaying.value) {
-    synth.resume()
-    isPlaying.value = true
-    emit('play')
+  if (synth && synth.paused && !isPlaying.value) {
+    try {
+      synth.resume()
+      isPlaying.value = true
+      emit('play')
+    } catch (error) {
+      console.error('恢复语音时出错:', error)
+      // 如果恢复失败，尝试重新播放
+      play()
+    }
   }
 }
 

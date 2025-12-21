@@ -7,6 +7,7 @@
         active-text="语音模式"
         inactive-text="文本模式"
         @change="handleModeChange"
+        size="small"
       />
     </div>
     
@@ -227,10 +228,14 @@ onMounted(() => {
 .voice-conversation-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: calc(100vh - 64px);
   max-width: 1200px;
   margin: 0 auto;
   background: var(--bg-light);
+  
+  @media (max-width: 768px) {
+    height: calc(100vh - 60px);
+  }
 }
 
 .voice-header {

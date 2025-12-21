@@ -33,12 +33,16 @@ const userStore = useUserStore()
 
 <style lang="scss" scoped>
 .home {
-  min-height: 100vh;
+  min-height: calc(100vh - 64px);
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #ff6b9d 0%, #4ecdc4 100%);
   padding: 20px;
+  
+  @media (max-width: 768px) {
+    min-height: calc(100vh - 60px);
+  }
 }
 
 .hero-section {
