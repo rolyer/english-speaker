@@ -49,6 +49,7 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         ws: true,
+        // Vite 代理默认保留路径，不需要 rewrite
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('proxy error', err);
