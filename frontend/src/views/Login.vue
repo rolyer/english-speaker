@@ -3,10 +3,10 @@
     <div class="login-card card">
       <h2 class="title">登录</h2>
       <el-form :model="form" :rules="rules" ref="formRef" @submit.prevent="handleLogin">
-        <el-form-item label="用户名" prop="username">
+        <el-form-item label="账号" prop="username">
           <el-input
             v-model="form.username"
-            placeholder="请输入用户名"
+            placeholder="请输入账号"
             size="large"
             clearable
           />
@@ -61,7 +61,7 @@ const form = reactive({
 
 const rules = {
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' }
+    { required: true, message: '请输入账号', trigger: 'blur' }
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
@@ -81,7 +81,7 @@ async function handleLogin() {
         const redirect = route.query.redirect || '/conversation'
         router.push(redirect)
       } catch (error) {
-        ElMessage.error(error.response?.data?.detail || '登录失败，请检查用户名和密码')
+        ElMessage.error(error.response?.data?.detail || '登录失败，请检查账号和密码')
       } finally {
         loading.value = false
       }

@@ -1,4 +1,5 @@
 """认证API路由"""
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -44,7 +45,7 @@ class TokenData(BaseModel):
 
 
 def get_user_by_username(db: Session, username: str) -> Optional[User]:
-    """根据用户名获取用户"""
+    """根据账号获取用户"""
     return db.query(User).filter(User.username == username).first()
 
 
@@ -94,11 +95,11 @@ async def get_current_user(
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """用户注册"""
-    # 检查用户名是否已存在
+    # 检查账号是否已存在
     if get_user_by_username(db, user_data.username):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="用户名已存在"
+            detail="账号已存在"
         )
     
     # 检查邮箱是否已存在
@@ -132,7 +133,7 @@ async def login(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户名或密码错误",
+            detail="账号或密码错误",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
