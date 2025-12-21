@@ -142,7 +142,7 @@ async def get_progress_stats(
 ):
     """获取详细进度统计"""
     # 获取基础进度
-    progress = await get_progress(current_user, db)
+    progress_response = await get_progress(current_user, db)
     
     # 获取每日统计
     end_date = datetime.now().date()
@@ -187,7 +187,7 @@ async def get_progress_stats(
         })
     
     return ProgressStatsResponse(
-        progress=progress,
+        progress=progress_response,
         daily_stats=daily_stats,
         recent_conversations=recent_list
     )
