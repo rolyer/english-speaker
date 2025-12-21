@@ -88,7 +88,8 @@ export const useChatStore = defineStore('chat', () => {
     })
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api'}/chat/stream`, {
+      // 使用 /api 前缀，Vite 代理会将其转发到后端
+      const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
