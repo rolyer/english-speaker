@@ -20,6 +20,7 @@
 import { ref, computed, onUnmounted, watch } from 'vue'
 import { isMobile } from '@/utils/device'
 import { ElMessage } from 'element-plus'
+import axios from 'axios'
 
 const props = defineProps({
   text: {
@@ -54,22 +55,53 @@ const isPlaying = ref(false)
 const loading = ref(false)
 const mobile = computed(() => isMobile())
 
-let synth = null
-let utterance = null
+let audio = null
+let audioUrl = null
 
 onUnmounted(() => {
   stop()
+  cleanup()
 })
 
-// 检查浏览器支持
-const isSupported = computed(() => {
-  return 'speechSynthesis' in window
-})
+// 清理资源
+function cleanup() {
+  if (audio) {
+    audio.pause()
+    audio = null
+  }
+  if (audioUrl) {
+    URL.revokeObjectURL(audioUrl)
+    audioUrl = null
+  }
+}
+
+// 将 rate (0.5-2.0) 转换为 Edge-TTS 格式 (如 '+0%', '-50%', '+100%')
+function convertRate(rate) {
+  // Edge-TTS 的 rate 范围是 -50% 到 +100%
+  // rate 1.0 = +0%, rate 0.5 = -50%, rate 2.0 = +100%
+  const percentage = Math.round((rate - 1.0) * 100)
+  const clamped = Math.max(-50, Math.min(100, percentage))
+  return clamped >= 0 ? `+${clamped}%` : `${clamped}%`
+}
+
+// 将 pitch (0.5-2.0) 转换为 Edge-TTS 格式 (如 '+0Hz', '+5Hz', '-5Hz')
+function convertPitch(pitch) {
+  // Edge-TTS 的 pitch 范围通常是 -50Hz 到 +50Hz
+  // pitch 1.0 = +0Hz, pitch 1.1 ≈ +5Hz, pitch 0.9 ≈ -5Hz
+  const hertz = Math.round((pitch - 1.0) * 50)
+  const clamped = Math.max(-50, Math.min(50, hertz))
+  return clamped >= 0 ? `+${clamped}Hz` : `${clamped}Hz`
+}
 
 // 监听text变化，自动播放
 watch(() => props.text, (newText, oldText) => {
+  // 如果文本变化且之前正在播放，先停止
+  if (oldText && isPlaying.value) {
+    stop()
+  }
+  
   // 只有当文本真正改变且不为空时才自动播放
-  if (newText && newText !== oldText && props.autoPlay && isSupported.value) {
+  if (newText && newText !== oldText && props.autoPlay) {
     // 延迟播放，确保DOM已更新
     setTimeout(() => {
       // 再次检查，因为可能在延迟期间用户已经手动播放
@@ -80,71 +112,9 @@ watch(() => props.text, (newText, oldText) => {
   }
 }, { immediate: false })
 
-function createUtterance() {
-  if (!isSupported.value) {
-    ElMessage.warning('您的浏览器不支持语音合成功能')
-    return null
-  }
-  
-  const utterance = new SpeechSynthesisUtterance(props.text)
-  utterance.lang = props.language
-  utterance.rate = props.rate
-  utterance.pitch = props.pitch
-  utterance.volume = props.volume
-  
-  utterance.onstart = () => {
-    isPlaying.value = true
-    loading.value = false
-    emit('play')
-  }
-  
-  utterance.onend = () => {
-    isPlaying.value = false
-    loading.value = false
-    emit('end')
-  }
-  
-  utterance.onerror = (event) => {
-    console.error('语音合成错误:', event.error)
-    isPlaying.value = false
-    loading.value = false
-    
-    let errorMessage = '语音播放失败'
-    switch (event.error) {
-      case 'network':
-        errorMessage = '网络错误，请检查网络连接'
-        break
-      case 'synthesis-failed':
-        errorMessage = '语音合成失败，请重试'
-        break
-      case 'synthesis-unavailable':
-        errorMessage = '语音合成服务不可用'
-        break
-      case 'interrupted':
-        errorMessage = '语音播放被中断'
-        break
-      case 'canceled':
-        // 用户取消，不显示错误
-        return
-      default:
-        errorMessage = `语音播放失败: ${event.error || '未知错误'}`
-    }
-    
-    ElMessage.error(errorMessage)
-    emit('error', event.error)
-  }
-  
-  return utterance
-}
-
-function play() {
-  if (!props.text) {
+async function play() {
+  if (!props.text || !props.text.trim()) {
     ElMessage.warning('没有可播放的文本')
-    return
-  }
-  
-  if (!isSupported.value) {
-    ElMessage.warning('您的浏览器不支持语音合成')
     return
   }
   
@@ -154,72 +124,112 @@ function play() {
   loading.value = true
   
   try {
-    synth = window.speechSynthesis
+    // 调用后端 TTS API
+    const token = localStorage.getItem('token')
     
-    // 某些浏览器需要取消之前的语音才能播放新的
-    synth.cancel()
-    
-    // 等待一小段时间确保浏览器准备好
-    setTimeout(() => {
-      utterance = createUtterance()
-      
-      if (utterance) {
-        try {
-          synth.speak(utterance)
-          
-          // 设置超时，如果5秒内没有开始播放，认为失败
-          const timeoutId = setTimeout(() => {
-            if (loading.value && !isPlaying.value) {
-              loading.value = false
-              ElMessage.error('语音播放超时，请重试')
-              emit('error', 'timeout')
-            }
-          }, 5000)
-          
-          // 如果开始播放，清除超时
-          const originalOnstart = utterance.onstart
-          utterance.onstart = () => {
-            clearTimeout(timeoutId)
-            if (originalOnstart) originalOnstart()
-          }
-        } catch (error) {
-          console.error('播放语音时出错:', error)
-          loading.value = false
-          ElMessage.error('语音播放失败，请重试')
-          emit('error', error)
+    const response = await axios.post(
+      '/api/tts/synthesize',
+      {
+        text: props.text,
+        language: props.language,
+        rate: props.rate !== 1.0 ? convertRate(props.rate) : undefined,
+        pitch: props.pitch !== 1.0 ? convertPitch(props.pitch) : undefined
+      },
+      {
+        responseType: 'blob', // 接收二进制数据
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json'
         }
-      } else {
-        loading.value = false
       }
-    }, 100)
+    )
+    
+    // 创建音频 URL（blob 数据在 response.data 中）
+    audioUrl = URL.createObjectURL(response.data)
+    
+    // 创建 Audio 对象
+    audio = new Audio(audioUrl)
+    audio.volume = props.volume
+    
+    // 设置事件监听
+    audio.onplay = () => {
+      isPlaying.value = true
+      loading.value = false
+      emit('play')
+    }
+    
+    audio.onpause = () => {
+      isPlaying.value = false
+      emit('pause')
+    }
+    
+    audio.onended = () => {
+      isPlaying.value = false
+      loading.value = false
+      emit('end')
+      cleanup()
+    }
+    
+    audio.onerror = (event) => {
+      console.error('音频播放错误:', event)
+      isPlaying.value = false
+      loading.value = false
+      ElMessage.error('音频播放失败，请重试')
+      emit('error', event)
+      cleanup()
+    }
+    
+    // 开始播放
+    await audio.play()
+    
   } catch (error) {
-    console.error('初始化语音合成时出错:', error)
+    console.error('播放语音失败:', error)
     loading.value = false
-    ElMessage.error('语音播放失败，请重试')
+    
+    // 处理不同类型的错误
+    if (error.response) {
+      // API 错误
+      const status = error.response.status
+      if (status === 401) {
+        ElMessage.error('请先登录')
+      } else if (status === 400) {
+        ElMessage.error(error.response.data?.detail || '请求参数错误')
+      } else if (status === 500) {
+        ElMessage.error('语音合成服务错误，请稍后重试')
+      } else {
+        ElMessage.error(`请求失败: ${status}`)
+      }
+    } else if (error.name === 'NotAllowedError') {
+      ElMessage.warning('请允许浏览器播放音频')
+    } else {
+      ElMessage.error('播放失败，请检查网络连接')
+    }
+    
     emit('error', error)
+    cleanup()
   }
 }
 
 function pause() {
-  if (synth && (isPlaying.value || synth.speaking)) {
+  if (audio && isPlaying.value) {
     try {
-      synth.pause()
+      audio.pause()
       isPlaying.value = false
       emit('pause')
     } catch (error) {
-      console.error('暂停语音时出错:', error)
+      console.error('暂停音频时出错:', error)
     }
   }
 }
 
 function resume() {
-  if (synth && synth.paused && !isPlaying.value) {
+  if (audio && audio.paused && !isPlaying.value) {
     try {
-      synth.resume()
+      audio.play()
       isPlaying.value = true
       emit('play')
     } catch (error) {
-      console.error('恢复语音时出错:', error)
+      console.error('恢复音频时出错:', error)
       // 如果恢复失败，尝试重新播放
       play()
     }
@@ -227,19 +237,25 @@ function resume() {
 }
 
 function stop() {
-  if (synth) {
-    synth.cancel()
-    isPlaying.value = false
-    loading.value = false
-    utterance = null
+  if (audio) {
+    try {
+      audio.pause()
+      audio.currentTime = 0
+    } catch (error) {
+      console.debug('停止音频时出错:', error)
+    }
   }
+  
+  isPlaying.value = false
+  loading.value = false
+  cleanup()
 }
 
 function togglePlay() {
   if (isPlaying.value) {
     pause()
   } else {
-    if (synth && synth.paused) {
+    if (audio && audio.paused) {
       resume()
     } else {
       play()
@@ -283,4 +299,3 @@ defineExpose({
   }
 }
 </style>
-

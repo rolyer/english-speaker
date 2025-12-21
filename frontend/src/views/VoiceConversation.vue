@@ -202,7 +202,14 @@ async function handleSend() {
     await nextTick()
     scrollToBottom()
   } catch (error) {
-    ElMessage.error('发送消息失败，请重试')
+    // 显示更详细的错误信息
+    const errorMessage = error.message || '发送消息失败，请重试'
+    if (errorMessage.includes('登录') || errorMessage.includes('未授权')) {
+      ElMessage.error(errorMessage)
+    } else {
+      ElMessage.error('发送消息失败，请重试')
+      console.error('发送消息错误:', error)
+    }
   }
   
   if (mobile.value) {
