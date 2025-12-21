@@ -24,8 +24,10 @@ class Settings(BaseSettings):
     
     # AI模型配置
     OPENAI_API_KEY: Optional[str] = None
+    DASHSCOPE_API_KEY: Optional[str] = None  # 阿里百炼API密钥
+    DASHSCOPE_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"  # 阿里百炼Base URL
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    DEFAULT_MODEL: str = "ollama"  # ollama, openai, qwen, wenxin等
+    DEFAULT_MODEL: str = "qwen"  # ollama, openai, qwen, wenxin等
     
     # 语音服务配置
     TTS_API_KEY: Optional[str] = None
