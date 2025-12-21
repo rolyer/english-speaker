@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: speaker-backend-prod
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend-data:/app/data
+      - uploads-data:/app/uploads
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://speaker:${DB_PASSWORD}@db:5432/speaker}
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-ollama}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - TTS_API_KEY=${TTS_API_KEY:-}
+      - STT_API_KEY=${STT_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    networks:
+      - speaker-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: speaker-frontend-prod
+    ports:
+      - "80:80"
+    volumes:
+      - frontend-static:/usr/share/nginx/html
+    environment:
+      - VITE_API_BASE_URL=${API_BASE_URL:-http://localhost:8000}
+    depends_on:
+      - backend
+    networks:
+      - speaker-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  db:
+    image: postgres:15-alpine
+    container_name: speaker-db-prod
+    environment:
+      - POSTGRES_USER=${DB_USER:-speaker}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME:-speaker}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - speaker-network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-speaker}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: speaker-ollama-prod
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - speaker-network
+    restart: always
+    # 生产环境建议启用GPU支持
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 可选：nginx反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: speaker-nginx-prod
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - speaker-network
+    restart: always
+
+volumes:
+  db-data:
+  backend-data:
+  uploads-data:
+  frontend-static:
+  ollama-data:
+
+networks:
+  speaker-network:
+    driver: bridge
+
