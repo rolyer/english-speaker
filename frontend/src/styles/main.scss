@@ -1,0 +1,95 @@
+// 童趣化主题色彩
+:root {
+  --primary-color: #ff6b9d;
+  --primary-light: #ff9bc7;
+  --primary-dark: #ff3d7a;
+  --secondary-color: #4ecdc4;
+  --accent-color: #ffe66d;
+  --success-color: #95e1d3;
+  --warning-color: #f38181;
+  --info-color: #a8e6cf;
+  --text-color: #333333;
+  --text-light: #666666;
+  --bg-color: #ffffff;
+  --bg-light: #f8f9fa;
+  --border-color: #e0e0e0;
+}
+
+// 全局样式重置
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  color: var(--text-color);
+  background-color: var(--bg-light);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// 响应式断点
+$mobile: 768px;
+$tablet: 1024px;
+
+// 移动端适配
+@media (max-width: $mobile) {
+  body {
+    font-size: 14px;
+  }
+}
+
+// 触摸友好的按钮
+button, .el-button {
+  min-height: 44px; // iOS推荐最小触摸区域
+  min-width: 44px;
+  padding: 8px 16px;
+  
+  @media (min-width: $mobile) {
+    min-height: 36px;
+    min-width: 36px;
+  }
+}
+
+// 卡片样式
+.card {
+  background: var(--bg-color);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  
+  @media (max-width: $mobile) {
+    border-radius: 12px;
+    padding: 16px;
+  }
+}
+
+// 动画
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+// Element Plus主题定制
+.el-button--primary {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+  
+  &:hover {
+    background-color: var(--primary-dark);
+    border-color: var(--primary-dark);
+  }
+}
+

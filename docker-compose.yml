@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: speaker-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend-data:/app/data
+    environment:
+      - DATABASE_URL=postgresql://speaker:speaker123@db:5432/speaker
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - DEFAULT_MODEL=ollama
+    depends_on:
+      - db
+      - ollama
+    networks:
+      - speaker-network
+    restart: unless-stopped
+    command: uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: speaker-frontend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - speaker-network
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: speaker-db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=speaker
+      - POSTGRES_PASSWORD=speaker123
+      - POSTGRES_DB=speaker
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - speaker-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U speaker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: speaker-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - speaker-network
+    restart: unless-stopped
+    # 可选：如果需要GPU支持，取消下面的注释
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  db-data:
+  backend-data:
+  ollama-data:
+
+networks:
+  speaker-network:
+    driver: bridge
+
