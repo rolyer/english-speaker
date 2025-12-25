@@ -62,10 +62,33 @@ class LocalModelService:
         """流式聊天"""
         chat_model = self.create_chat_model(model_name, temperature)
         async for chunk in chat_model.astream(messages):
-            if hasattr(chunk, 'content'):
-                yield chunk.content
-            else:
-                yield str(chunk)
+            try:
+                if hasattr(chunk, 'content'):
+                    content = chunk.content
+                    # 确保content是字符串类型，如果是bytes则解码
+                    if isinstance(content, bytes):
+                        content = content.decode('utf-8', errors='replace')
+                    elif not isinstance(content, str):
+                        content = str(content)
+                    yield content
+                else:
+                    # 确保转换为字符串时使用UTF-8编码
+                    chunk_str = str(chunk)
+                    yield chunk_str
+            except UnicodeEncodeError as e:
+                # 如果遇到编码错误，尝试使用UTF-8编码
+                try:
+                    if hasattr(chunk, 'content'):
+                        content = chunk.content
+                        if isinstance(content, bytes):
+                            content = content.decode('utf-8', errors='replace')
+                        else:
+                            content = str(content).encode('utf-8', errors='replace').decode('utf-8')
+                        yield content
+                    else:
+                        yield str(chunk).encode('utf-8', errors='replace').decode('utf-8')
+                except Exception:
+                    yield ""  # 返回空字符串而不是抛出异常
 
 
 local_model_service = LocalModelService()
