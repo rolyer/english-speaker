@@ -79,9 +79,9 @@ SECRET_KEY=dev-secret-key-change-in-production
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 OLLAMA_BASE_URL=http://localhost:11434
-DASHSCOPE_API_KEY=sk-02ab4cf141084b21a6d0a172e57332b2
-DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-DEFAULT_MODEL=qwen
+OPENROUTER_API_KEY=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
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+DEFAULT_MODEL=openrouter
 EOF
 ```
 
@@ -194,8 +194,14 @@ OLLAMA_BASE_URL=http://localhost:11434
 DEFAULT_MODEL=ollama
 EOF
 
-# 启动后端服务
-uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# 启动后端服务（推荐使用启动脚本，确保UTF-8编码）
+./start.sh
+
+# 或者手动设置环境变量后启动
+# export PYTHONIOENCODING=utf-8
+# export LC_ALL=en_US.UTF-8
+# export LANG=en_US.UTF-8
+# uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 #### 启动前端（终端2）
@@ -285,10 +291,11 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # AI模型配置
 OPENAI_API_KEY=your-openai-api-key
-DASHSCOPE_API_KEY=sk-02ab4cf141084b21a6d0a172e57332b2  # 阿里百炼API密钥
-DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1  # 阿里百炼Base URL
+OPENROUTER_API_KEY=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  # OpenRouter API密钥
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1  # OpenRouter Base URL
+OPENROUTER_DEFAULT_MODEL=meta-llama/llama-3.1-8b-instruct:free  # OpenRouter默认模型（全球可用，免费）
 OLLAMA_BASE_URL=http://localhost:11434
-DEFAULT_MODEL=qwen  # qwen(通义千问), ollama, openai, wenxin等
+DEFAULT_MODEL=openrouter  # openrouter, ollama, openai, qwen等
 
 # 语音服务配置
 TTS_API_KEY=your-tts-api-key

@@ -24,10 +24,13 @@ class Settings(BaseSettings):
     
     # AI模型配置
     OPENAI_API_KEY: Optional[str] = None
-    DASHSCOPE_API_KEY: Optional[str] = None  # 阿里百炼API密钥
-    DASHSCOPE_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"  # 阿里百炼Base URL
+    OPENROUTER_API_KEY: Optional[str] = None  # OpenRouter API密钥
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"  # OpenRouter Base URL
+    OPENROUTER_DEFAULT_MODEL: str = "meta-llama/llama-3.1-8b-instruct:free"  # OpenRouter默认模型（全球可用）
+    DASHSCOPE_API_KEY: Optional[str] = None  # 阿里百炼API密钥（保留兼容）
+    DASHSCOPE_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"  # 阿里百炼Base URL（保留兼容）
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    DEFAULT_MODEL: str = "qwen"  # ollama, openai, qwen, wenxin等
+    DEFAULT_MODEL: str = "openrouter"  # openrouter, ollama, openai, qwen等
     
     # 语音服务配置
     TTS_API_KEY: Optional[str] = None

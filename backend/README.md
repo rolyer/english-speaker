@@ -33,5 +33,7 @@ OLLAMA_BASE_URL=http://localhost:11434
 DEFAULT_MODEL=ollama
 ```
 
+openrouter: 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
+
 更多信息请查看项目根目录的 [README.md](../README.md) 和 [docs/setup.md](../docs/setup.md)。
 

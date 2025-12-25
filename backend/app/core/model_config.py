@@ -8,6 +8,7 @@ class ModelType(str, Enum):
     """模型类型枚举"""
     OLLAMA = "ollama"
     OPENAI = "openai"
+    OPENROUTER = "openrouter"
     QWEN = "qwen"
     WENXIN = "wenxin"
     ZHIPU = "zhipu"
@@ -20,6 +21,9 @@ class ModelConfig:
         self.default_model = settings.DEFAULT_MODEL
         self.ollama_base_url = settings.OLLAMA_BASE_URL
         self.openai_api_key = settings.OPENAI_API_KEY
+        self.openrouter_api_key = settings.OPENROUTER_API_KEY
+        self.openrouter_base_url = settings.OPENROUTER_BASE_URL
+        self.openrouter_default_model = settings.OPENROUTER_DEFAULT_MODEL
         self.dashscope_api_key = settings.DASHSCOPE_API_KEY
         self.dashscope_base_url = settings.DASHSCOPE_BASE_URL
     
@@ -29,7 +33,7 @@ class ModelConfig:
         try:
             return ModelType(model.lower())
         except ValueError:
-            return ModelType.QWEN  # 默认使用通义千问
+            return ModelType.OPENROUTER  # 默认使用OpenRouter
     
     def get_ollama_config(self) -> dict:
         """获取Ollama配置"""
@@ -49,8 +53,19 @@ class ModelConfig:
             "temperature": 0.7,
         }
     
+    def get_openrouter_config(self) -> dict:
+        """获取OpenRouter配置"""
+        if not self.openrouter_api_key:
+            raise ValueError("OpenRouter API key not configured")
+        return {
+            "api_key": self.openrouter_api_key,
+            "base_url": self.openrouter_base_url,
+            "model": self.openrouter_default_model,  # 使用配置的默认模型（全球可用）
+            "temperature": 0.7,
+        }
+    
     def get_qwen_config(self) -> dict:
-        """获取通义千问配置"""
+        """获取通义千问配置（保留兼容）"""
         if not self.dashscope_api_key:
             raise ValueError("DashScope API key not configured")
         return {
