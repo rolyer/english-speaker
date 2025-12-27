@@ -237,6 +237,7 @@ function isLatestAssistantMessage(index) {
 }
 
 onMounted(() => {
+  // 不清空消息，保持从其他页面带来的会话状态
   scrollToBottom()
 })
 </script>
