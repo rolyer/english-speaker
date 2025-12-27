@@ -93,8 +93,15 @@ async def chat(
         ).first()
         if not conversation:
             raise HTTPException(status_code=404, detail="对话会话不存在")
+        # 更新 scenario（如果提供了新的）
+        if request.scenario and conversation.scenario != request.scenario:
+            conversation.scenario = request.scenario
+            db.commit()
     else:
-        conversation = Conversation(user_id=current_user.id)
+        conversation = Conversation(
+            user_id=current_user.id,
+            scenario=request.scenario or 'general'
+        )
         db.add(conversation)
         db.commit()
         db.refresh(conversation)
@@ -154,8 +161,15 @@ async def stream_chat(
         ).first()
         if not conversation:
             raise HTTPException(status_code=404, detail="对话会话不存在")
+        # 更新 scenario（如果提供了新的）
+        if request.scenario and conversation.scenario != request.scenario:
+            conversation.scenario = request.scenario
+            db.commit()
     else:
-        conversation = Conversation(user_id=current_user.id)
+        conversation = Conversation(
+            user_id=current_user.id,
+            scenario=request.scenario or 'general'
+        )
         db.add(conversation)
         db.commit()
         db.refresh(conversation)
@@ -279,6 +293,41 @@ async def get_conversations(
         ))
     
     return result
+
+
+@router.get("/conversations/{conversation_id}", response_model=ConversationResponse)
+async def get_conversation(
+    conversation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """获取单个对话会话的详情"""
+    conversation = db.query(Conversation).filter(
+        Conversation.id == conversation_id,
+        Conversation.user_id == current_user.id
+    ).first()
+    
+    if not conversation:
+        raise HTTPException(status_code=404, detail="对话会话不存在")
+    
+    messages = db.query(Message).filter(
+        Message.conversation_id == conversation.id
+    ).order_by(Message.created_at).all()
+    
+    return ConversationResponse(
+        id=conversation.id,
+        scenario=conversation.scenario,
+        started_at=conversation.started_at.isoformat(),
+        messages=[
+            {
+                "id": msg.id,
+                "role": msg.role,
+                "content": msg.content,
+                "created_at": msg.created_at.isoformat()
+            }
+            for msg in messages
+        ]
+    )
 
 
 @router.get("/health")

@@ -176,10 +176,29 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  function loadConversation(conversation) {
-    currentConversationId.value = conversation.id
-    messages.value = conversation.messages || []
-    selectedScenario.value = conversation.scenario || 'general'
+  async function loadConversation(conversationId) {
+    try {
+      loading.value = true
+      const response = await api.get(`/chat/conversations/${conversationId}`)
+      
+      currentConversationId.value = response.id
+      selectedScenario.value = response.scenario || 'general'
+      
+      // 转换消息格式
+      messages.value = response.messages.map(msg => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        created_at: msg.created_at
+      }))
+      
+      return response
+    } catch (error) {
+      console.error('加载会话失败:', error)
+      throw error
+    } finally {
+      loading.value = false
+    }
   }
 
   function clearMessages() {
