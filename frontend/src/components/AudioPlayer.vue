@@ -59,6 +59,11 @@ let audio = null
 let audioUrl = null
 
 onUnmounted(() => {
+  // 清除定时器
+  if (autoPlayTimer) {
+    clearTimeout(autoPlayTimer)
+    autoPlayTimer = null
+  }
   stop()
   cleanup()
 })
@@ -93,22 +98,35 @@ function convertPitch(pitch) {
   return clamped >= 0 ? `+${clamped}Hz` : `${clamped}Hz`
 }
 
+// 用于防抖的定时器
+let autoPlayTimer = null
+// 记录上次自动播放的文本，避免重复播放
+let lastAutoPlayText = ''
+
 // 监听text变化，自动播放
 watch(() => props.text, (newText, oldText) => {
+  // 清除之前的定时器
+  if (autoPlayTimer) {
+    clearTimeout(autoPlayTimer)
+    autoPlayTimer = null
+  }
+  
   // 如果文本变化且之前正在播放，先停止
   if (oldText && isPlaying.value) {
     stop()
   }
   
-  // 只有当文本真正改变且不为空时才自动播放
-  if (newText && newText !== oldText && props.autoPlay) {
-    // 延迟播放，确保DOM已更新
-    setTimeout(() => {
-      // 再次检查，因为可能在延迟期间用户已经手动播放
-      if (props.autoPlay && !isPlaying.value) {
+  // 只有当文本真正改变、不为空、且与上次播放的文本不同时才自动播放
+  if (newText && newText !== oldText && props.autoPlay && newText !== lastAutoPlayText) {
+    // 延迟播放，确保DOM已更新，并且避免在流式响应中多次触发
+    autoPlayTimer = setTimeout(() => {
+      // 再次检查，因为可能在延迟期间用户已经手动播放或文本已改变
+      if (props.autoPlay && !isPlaying.value && props.text === newText) {
+        lastAutoPlayText = newText
         play()
       }
-    }, 300)
+      autoPlayTimer = null
+    }, 500) // 增加延迟时间，等待流式响应完成
   }
 }, { immediate: false })
 

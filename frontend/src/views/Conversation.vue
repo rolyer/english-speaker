@@ -40,7 +40,6 @@
                 v-if="message.role === 'assistant'"
                 :text="message.content"
                 :auto-play="false"
-                ref="audioPlayerRef"
               />
               <div class="message-time">{{ formatTime(message.created_at) }}</div>
             </div>
