@@ -18,7 +18,7 @@
       </div>
       
       <div
-        v-for="message in chatStore.messages"
+        v-for="(message, index) in chatStore.messages"
         :key="message.id"
         :class="['message', message.role]"
       >
@@ -41,8 +41,7 @@
               <AudioPlayer
                 v-if="message.role === 'assistant'"
                 :text="message.content"
-                :auto-play="voiceMode && message.role === 'assistant'"
-                ref="audioPlayerRef"
+                :auto-play="voiceMode && isLatestAssistantMessage(index)"
               />
               <div class="message-time">{{ formatTime(message.created_at) }}</div>
             </div>
@@ -224,6 +223,17 @@ function scrollToBottom() {
       messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
     }
   })
+}
+
+// 判断是否是最新的AI消息
+function isLatestAssistantMessage(index) {
+  // 从当前索引往后查找，如果没有其他assistant消息，则这是最新的
+  for (let i = index + 1; i < chatStore.messages.length; i++) {
+    if (chatStore.messages[i].role === 'assistant') {
+      return false
+    }
+  }
+  return true
 }
 
 onMounted(() => {
