@@ -1,21 +1,28 @@
 <template>
   <div class="audio-recorder">
-    <el-button
-      :type="isRecording ? 'danger' : 'primary'"
-      :icon="isRecording ? 'VideoPause' : 'Microphone'"
-      :loading="loading"
-      :disabled="!isSupported"
-      @click="toggleRecording"
-      :size="mobile ? 'large' : 'default'"
-      circle
-      class="record-button"
-    >
-      <span v-if="!isRecording && !loading">录音</span>
-      <span v-else-if="isRecording">停止</span>
-    </el-button>
+    <div class="record-button-wrapper" :class="{ recording: isRecording }">
+      <!-- 波纹效果 -->
+      <div v-if="isRecording" class="ripple-container">
+        <div class="ripple ripple-1"></div>
+        <div class="ripple ripple-2"></div>
+        <div class="ripple ripple-3"></div>
+      </div>
+      
+      <!-- 录音按钮 -->
+      <el-button
+        :type="isRecording ? 'danger' : 'primary'"
+        :disabled="!isSupported"
+        @click="toggleRecording"
+        circle
+        class="record-button"
+      >
+        <el-icon :size="mobile ? 28 : 24">
+          <component :is="isRecording ? 'VideoPause' : 'Microphone'" />
+        </el-icon>
+      </el-button>
+    </div>
     
-    <div v-if="isRecording" class="recording-indicator">
-      <div class="pulse"></div>
+    <div v-if="isRecording" class="recording-text">
       <span>正在录音...</span>
     </div>
     
@@ -44,6 +51,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { isSpeechRecognitionSupported, getSpeechRecognition, requestMicrophonePermission, isIOSDevice } from '@/utils/mobileAudio'
 import { isMobile } from '@/utils/device'
 import { ElMessage } from 'element-plus'
+import { Microphone, VideoPause } from '@element-plus/icons-vue'
 
 const props = defineProps({
   language: {
@@ -191,12 +199,10 @@ async function startRecording() {
   }
   
   try {
-    loading.value = true
     recognition.start()
   } catch (error) {
     console.error('启动录音失败:', error)
     ElMessage.error('启动录音失败，请重试')
-    loading.value = false
   }
 }
 
@@ -209,7 +215,6 @@ function stopRecording() {
     }
   }
   isRecording.value = false
-  loading.value = false
   emit('stop', transcript.value)
 }
 
@@ -233,42 +238,122 @@ async function requestPermission() {
   gap: 16px;
 }
 
-.record-button {
-  width: 64px;
-  height: 64px;
-  font-size: 18px;
+.record-button-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   
-  @media (max-width: 768px) {
-    width: 72px;
-    height: 72px;
-    font-size: 20px;
+  &.recording {
+    .record-button {
+      box-shadow: 0 0 0 4px rgba(245, 108, 108, 0.2);
+    }
   }
 }
 
-.recording-indicator {
+.ripple-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.ripple {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px solid var(--el-color-danger);
+  opacity: 0;
+  animation: ripple-animation 2s infinite;
+  
+  @media (max-width: 768px) {
+    width: 90px;
+    height: 90px;
+  }
+  
+  &.ripple-1 {
+    animation-delay: 0s;
+  }
+  
+  &.ripple-2 {
+    animation-delay: 0.6s;
+  }
+  
+  &.ripple-3 {
+    animation-delay: 1.2s;
+  }
+}
+
+@keyframes ripple-animation {
+  0% {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+  }
+}
+
+.record-button {
+  width: 80px;
+  height: 80px;
+  font-size: 24px;
+  transition: all 0.3s ease;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  @media (max-width: 768px) {
+    width: 90px;
+    height: 90px;
+    font-size: 28px;
+  }
+  
+  &:hover {
+    transform: scale(1.05);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+  
+  // 确保图标居中
+  :deep(.el-icon) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.recording-text {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--primary-color);
+  color: var(--el-color-danger);
   font-weight: 500;
+  font-size: 14px;
+  animation: pulse-text 1.5s infinite;
   
-  .pulse {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--primary-color);
-    animation: pulse 1.5s infinite;
+  @media (max-width: 768px) {
+    font-size: 16px;
   }
 }
 
-@keyframes pulse {
+@keyframes pulse-text {
   0%, 100% {
     opacity: 1;
-    transform: scale(1);
   }
   50% {
-    opacity: 0.5;
-    transform: scale(1.2);
+    opacity: 0.6;
   }
 }
 
