@@ -92,7 +92,7 @@
 
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { isMobile } from '@/utils/device'
@@ -100,6 +100,7 @@ import { ElMessage } from 'element-plus'
 import AudioPlayer from '@/components/AudioPlayer.vue'
 
 const router = useRouter()
+const route = useRoute()
 const chatStore = useChatStore()
 const userStore = useUserStore()
 const inputMessage = ref('')
@@ -191,8 +192,28 @@ function handleKeyPress(event) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('keydown', handleKeyPress)
+  
+  // 检查URL参数，如果有conversation_id则加载历史会话
+  const conversationId = route.query.id
+  if (conversationId) {
+    try {
+      await chatStore.loadConversation(parseInt(conversationId))
+      ElMessage.success('已加载历史会话')
+      await nextTick()
+      scrollToBottom()
+    } catch (error) {
+      console.error('加载历史会话失败:', error)
+      ElMessage.error('加载历史会话失败')
+      // 清空消息，开始新会话
+      chatStore.clearMessages()
+    }
+  } else {
+    // 如果没有指定会话ID，清空之前的消息
+    chatStore.clearMessages()
+  }
+  
   scrollToBottom()
 })
 
