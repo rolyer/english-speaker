@@ -68,9 +68,9 @@ function getCacheKey(text, language, rate, pitch) {
 
 onUnmounted(() => {
   // 清除定时器
-  if (autoPlayTimer) {
-    clearTimeout(autoPlayTimer)
-    autoPlayTimer = null
+  if (autoPlayTimer.value) {
+    clearTimeout(autoPlayTimer.value)
+    autoPlayTimer.value = null
   }
   stop()
   cleanup()
@@ -106,17 +106,28 @@ function convertPitch(pitch) {
   return clamped >= 0 ? `+${clamped}Hz` : `${clamped}Hz`
 }
 
-// 用于防抖的定时器
-let autoPlayTimer = null
-// 记录上次自动播放的文本，避免重复播放
-let lastAutoPlayText = ''
+// 用于防抖的定时器（每个组件实例独立）
+const autoPlayTimer = ref(null)
+// 记录上次自动播放的文本，避免重复播放（每个组件实例独立）
+const lastAutoPlayText = ref('')
+// 标记是否已经触发过自动播放
+const hasAutoPlayed = ref(false)
 
 // 监听text变化，自动播放
 watch(() => props.text, (newText, oldText) => {
+  console.log('[AudioPlayer] text changed:', {
+    newTextLength: newText?.length,
+    oldTextLength: oldText?.length,
+    autoPlay: props.autoPlay,
+    isPlaying: isPlaying.value,
+    hasAutoPlayed: hasAutoPlayed.value
+  })
+  
   // 清除之前的定时器
-  if (autoPlayTimer) {
-    clearTimeout(autoPlayTimer)
-    autoPlayTimer = null
+  if (autoPlayTimer.value) {
+    console.log('[AudioPlayer] 清除之前的定时器')
+    clearTimeout(autoPlayTimer.value)
+    autoPlayTimer.value = null
   }
   
   // 如果文本变化且之前正在播放，先停止
@@ -124,19 +135,72 @@ watch(() => props.text, (newText, oldText) => {
     stop()
   }
   
-  // 只有当文本真正改变、不为空、且与上次播放的文本不同时才自动播放
-  if (newText && newText !== oldText && props.autoPlay && newText !== lastAutoPlayText) {
-    // 延迟播放，确保DOM已更新，并且避免在流式响应中多次触发
-    autoPlayTimer = setTimeout(() => {
-      // 再次检查，因为可能在延迟期间用户已经手动播放或文本已改变
-      if (props.autoPlay && !isPlaying.value && props.text === newText) {
-        lastAutoPlayText = newText
+  // 只有当文本真正改变、不为空、autoPlay开启、且还没有自动播放过时才设置定时器
+  if (newText && newText !== oldText && props.autoPlay && !hasAutoPlayed.value) {
+    const timerId = Date.now()
+    console.log('[AudioPlayer] 设置自动播放定时器，1500ms后执行, timerId:', timerId)
+    // 延迟播放，确保流式响应完成
+    autoPlayTimer.value = setTimeout(() => {
+      console.log('[AudioPlayer] ⏰ 定时器触发! timerId:', timerId, '检查条件:', {
+        autoPlay: props.autoPlay,
+        isPlaying: isPlaying.value,
+        hasText: !!props.text,
+        textLength: props.text?.length,
+        hasAutoPlayed: hasAutoPlayed.value
+      })
+      
+      // 再次检查条件
+      if (props.autoPlay && !isPlaying.value && props.text && props.text.trim().length > 0 && !hasAutoPlayed.value) {
+        lastAutoPlayText.value = props.text
+        hasAutoPlayed.value = true
+        console.log('[AudioPlayer] ✅ 自动播放音频:', props.text.substring(0, 50) + '...')
         play()
+      } else {
+        console.log('[AudioPlayer] ❌ 取消自动播放:', {
+          autoPlay: props.autoPlay,
+          isPlaying: isPlaying.value,
+          hasText: !!props.text,
+          hasAutoPlayed: hasAutoPlayed.value
+        })
       }
-      autoPlayTimer = null
-    }, 500) // 增加延迟时间，等待流式响应完成
+      autoPlayTimer.value = null
+    }, 1500) // 增加延迟时间到1500ms，确保流式响应完全完成
+    console.log('[AudioPlayer] 定时器已设置, timer对象:', autoPlayTimer.value)
   }
 }, { immediate: false })
+
+// 监听 autoPlay 属性变化，支持动态启用自动播放
+watch(() => props.autoPlay, (newValue, oldValue) => {
+  console.log('[AudioPlayer] autoPlay changed:', { 
+    newValue, 
+    oldValue, 
+    hasText: !!props.text, 
+    textLength: props.text?.length,
+    hasAutoPlayed: hasAutoPlayed.value,
+    isPlaying: isPlaying.value
+  })
+  
+  // 当 autoPlay 从 false 变为 true，且有文本内容，且不是正在播放时，且还没有自动播放过
+  if (newValue && !oldValue && props.text && props.text.trim().length > 0 && !isPlaying.value && !hasAutoPlayed.value) {
+    console.log('[AudioPlayer] ⚡ autoPlay 从 false 变为 true，准备自动播放')
+    // 延迟一下，等待流式响应稳定
+    setTimeout(() => {
+      if (props.autoPlay && !isPlaying.value && props.text && !hasAutoPlayed.value) {
+        lastAutoPlayText.value = props.text
+        hasAutoPlayed.value = true
+        console.log('[AudioPlayer] ✅ 动态启用自动播放:', props.text.substring(0, 50) + '...')
+        play()
+      } else {
+        console.log('[AudioPlayer] ❌ 取消动态自动播放:', {
+          autoPlay: props.autoPlay,
+          isPlaying: isPlaying.value,
+          hasText: !!props.text,
+          hasAutoPlayed: hasAutoPlayed.value
+        })
+      }
+    }, 800) // 延迟800ms，等待流式响应完成
+  }
+})
 
 async function play() {
   if (!props.text || !props.text.trim()) {

@@ -40,8 +40,9 @@
             <div class="message-actions">
               <AudioPlayer
                 v-if="message.role === 'assistant'"
+                :ref="el => { if (el) audioPlayerRefs[message.id] = el }"
                 :text="message.content"
-                :auto-play="voiceMode && isLatestAssistantMessage(index)"
+                :auto-play="false"
               />
               <div class="message-time">{{ formatTime(message.created_at) }}</div>
             </div>
@@ -105,7 +106,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { isMobile } from '@/utils/device'
 import { ElMessage } from 'element-plus'
@@ -118,9 +119,12 @@ const chatStore = useChatStore()
 const inputMessage = ref('')
 const inputRef = ref(null)
 const messagesContainer = ref(null)
-const voiceMode = ref(false)
+const voiceMode = ref(true) // 语音对话页面默认开启语音模式
 const mobile = computed(() => isMobile())
 const isRecording = ref(false)
+const lastPlayedMessageId = ref(null) // 记录最后播放的消息ID
+const enableAutoPlay = ref(false) // 是否启用自动播放（只有在用户发送消息后才启用）
+const audioPlayerRefs = ref({}) // 存储所有 AudioPlayer 组件的引用
 
 function formatMessage(content) {
   return content.replace(/\n/g, '<br>')
@@ -145,6 +149,9 @@ function formatTime(timeString) {
 
 async function handleVoiceResult(text) {
   if (!text.trim()) return
+  
+  // 用户发送消息后，启用自动播放
+  enableAutoPlay.value = true
   
   try {
     // 发送语音识别的文本
@@ -190,6 +197,9 @@ async function handleSend() {
   const message = inputMessage.value.trim()
   inputMessage.value = ''
   
+  // 用户发送消息后，启用自动播放
+  enableAutoPlay.value = true
+  
   try {
     await chatStore.sendMessageStream(
       message,
@@ -233,16 +243,105 @@ function isLatestAssistantMessage(index) {
       return false
     }
   }
-  return true
+  // 同时检查消息内容不为空（避免在流式响应开始时就触发）
+  const message = chatStore.messages[index]
+  const isLatest = message && message.content && message.content.trim().length > 0
+  
+  if (isLatest) {
+    console.log('[VoiceConversation] 最新AI消息:', {
+      index,
+      contentLength: message.content.length,
+      voiceMode: voiceMode.value,
+      autoPlay: voiceMode.value && isLatest
+    })
+  }
+  
+  return isLatest
 }
 
+// 监听消息变化，当新的 assistant 消息完成时自动播放
+let autoPlayTimer = null
+watch(() => chatStore.messages, (newMessages) => {
+  console.log('[VoiceConversation] watch 触发:', {
+    enableAutoPlay: enableAutoPlay.value,
+    voiceMode: voiceMode.value,
+    loading: chatStore.loading,
+    messagesCount: newMessages.length
+  })
+  
+  // 只有在启用自动播放和语音模式开启时才处理（不检查 loading，因为流式响应过程中 loading 可能是 true）
+  if (!enableAutoPlay.value || !voiceMode.value) {
+    console.log('[VoiceConversation] 跳过自动播放检查')
+    return
+  }
+  
+  // 清除之前的定时器
+  if (autoPlayTimer) {
+    clearTimeout(autoPlayTimer)
+  }
+  
+  // 找到最后一条 assistant 消息
+  const lastAssistantMessage = [...newMessages].reverse().find(msg => msg.role === 'assistant')
+  
+  if (lastAssistantMessage && lastAssistantMessage.content && lastAssistantMessage.content.trim().length > 0) {
+    // 如果这条消息还没有播放过
+    if (lastAssistantMessage.id !== lastPlayedMessageId.value) {
+      console.log('[VoiceConversation] 检测到新的 assistant 消息，准备自动播放, 消息ID:', lastAssistantMessage.id)
+      
+      // 设置定时器，等待流式响应完成
+      autoPlayTimer = setTimeout(async () => {
+        // 再次检查，确保不是在加载中
+        if (!chatStore.loading && voiceMode.value && enableAutoPlay.value && lastAssistantMessage.id !== lastPlayedMessageId.value) {
+          console.log('[VoiceConversation] ✅ 开始自动播放音频，消息ID:', lastAssistantMessage.id)
+          lastPlayedMessageId.value = lastAssistantMessage.id
+          
+          // 等待 DOM 更新，确保 AudioPlayer 组件已渲染
+          await nextTick()
+          
+          // 获取对应的 AudioPlayer 组件引用并调用 play 方法
+          const audioPlayer = audioPlayerRefs.value[lastAssistantMessage.id]
+          if (audioPlayer && typeof audioPlayer.play === 'function') {
+            try {
+              await audioPlayer.play()
+              console.log('[VoiceConversation] ✅ 通过 AudioPlayer 组件播放成功')
+            } catch (error) {
+              console.error('[VoiceConversation] ❌ AudioPlayer 播放失败:', error)
+              // 如果是浏览器自动播放策略导致的错误，不显示错误消息
+              if (error.name !== 'NotAllowedError') {
+                ElMessage.error('音频播放失败')
+              }
+            }
+          } else {
+            console.error('[VoiceConversation] ❌ 找不到 AudioPlayer 组件引用:', lastAssistantMessage.id)
+          }
+        } else {
+          console.log('[VoiceConversation] ❌ 取消自动播放:', {
+            loading: chatStore.loading,
+            voiceMode: voiceMode.value,
+            enableAutoPlay: enableAutoPlay.value,
+            alreadyPlayed: lastAssistantMessage.id === lastPlayedMessageId.value
+          })
+        }
+      }, 1500) // 等待1500ms确保流式响应完成
+    }
+  }
+}, { deep: true })
+
 onMounted(async () => {
+  // 页面加载时，不启用自动播放（避免浏览器自动播放策略限制）
+  enableAutoPlay.value = false
+  
   // 如果没有当前会话，尝试加载最新的对话
   if (!chatStore.currentConversationId) {
     try {
       const latestConversation = await chatStore.loadLatestConversation()
       if (latestConversation) {
         console.log('已自动加载最新对话')
+        // 记录已加载的消息ID，避免自动播放历史消息
+        const lastAssistantMessage = [...chatStore.messages].reverse().find(msg => msg.role === 'assistant')
+        if (lastAssistantMessage) {
+          lastPlayedMessageId.value = lastAssistantMessage.id
+        }
         await nextTick()
         scrollToBottom()
       } else {
@@ -253,9 +352,21 @@ onMounted(async () => {
       console.error('加载最新对话失败:', error)
       // 加载失败，保持空白状态
     }
+  } else {
+    // 如果已经有当前会话（从其他页面导航过来），记录最后的消息ID
+    const lastAssistantMessage = [...chatStore.messages].reverse().find(msg => msg.role === 'assistant')
+    if (lastAssistantMessage) {
+      lastPlayedMessageId.value = lastAssistantMessage.id
+    }
   }
   
   scrollToBottom()
+})
+
+onUnmounted(() => {
+  if (autoPlayTimer) {
+    clearTimeout(autoPlayTimer)
+  }
 })
 </script>
 
