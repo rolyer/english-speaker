@@ -208,8 +208,8 @@ onMounted(async () => {
       // 清空消息，开始新会话
       chatStore.clearMessages()
     }
-  } else {
-    // 如果没有指定会话ID，清空之前的消息
+  } else if (!chatStore.currentConversationId) {
+    // 只有在没有当前会话ID时才清空消息（避免清除从其他页面带来的会话）
     chatStore.clearMessages()
   }
   
