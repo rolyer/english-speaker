@@ -1,6 +1,6 @@
 <template>
-  <div class="pronunciation-score">
-    <div v-if="score !== null" class="score-display">
+  <div v-if="score !== null && score !== undefined" class="pronunciation-score">
+    <div class="score-display">
       <div class="score-circle">
         <div class="score-value">{{ score }}</div>
         <div class="score-label">分</div>
@@ -95,9 +95,7 @@ const levelType = computed(() => {
 
 <style lang="scss" scoped>
 .pronunciation-score {
-  padding: 16px;
-  background: var(--bg-light);
-  border-radius: 12px;
+  // 移除背景色和内边距，让它透明融入消息气泡
   margin-top: 12px;
 }
 

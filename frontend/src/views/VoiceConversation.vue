@@ -30,12 +30,12 @@
           <div class="message-bubble">
             <div class="message-text" v-html="formatMessage(message.content)"></div>
             
-            <div v-if="message.role === 'user' && message.pronunciation_score !== null" class="pronunciation-result">
-              <PronunciationScore
-                :score="message.pronunciation_score"
-                :feedback="message.pronunciation_feedback || []"
-              />
-            </div>
+            <PronunciationScore
+              v-if="message.role === 'user' && message.pronunciation_score !== null && message.pronunciation_score !== undefined"
+              :score="message.pronunciation_score"
+              :feedback="message.pronunciation_feedback || []"
+              class="pronunciation-result"
+            />
             
             <div class="message-actions">
               <AudioPlayer
