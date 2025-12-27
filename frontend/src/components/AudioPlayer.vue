@@ -58,6 +58,14 @@ const mobile = computed(() => isMobile())
 let audio = null
 let audioUrl = null
 
+// 浏览器端音频缓存（使用 Map 存储）
+const audioCache = new Map()
+
+// 生成缓存键
+function getCacheKey(text, language, rate, pitch) {
+  return `${text}|${language}|${rate || '1.0'}|${pitch || '1.0'}`
+}
+
 onUnmounted(() => {
   // 清除定时器
   if (autoPlayTimer) {
@@ -142,28 +150,49 @@ async function play() {
   loading.value = true
   
   try {
-    // 调用后端 TTS API
-    const token = localStorage.getItem('token')
+    // 生成缓存键
+    const cacheKey = getCacheKey(props.text, props.language, props.rate, props.pitch)
     
-    const response = await axios.post(
-      '/api/tts/synthesize',
-      {
-        text: props.text,
-        language: props.language,
-        rate: props.rate !== 1.0 ? convertRate(props.rate) : undefined,
-        pitch: props.pitch !== 1.0 ? convertPitch(props.pitch) : undefined
-      },
-      {
-        responseType: 'blob', // 接收二进制数据
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json'
+    // 检查浏览器缓存
+    let audioBlob
+    if (audioCache.has(cacheKey)) {
+      audioBlob = audioCache.get(cacheKey)
+      console.log('从浏览器缓存加载音频')
+    } else {
+      // 调用后端 TTS API
+      const token = localStorage.getItem('token')
+      
+      const response = await axios.post(
+        '/api/tts/synthesize',
+        {
+          text: props.text,
+          language: props.language,
+          rate: props.rate !== 1.0 ? convertRate(props.rate) : undefined,
+          pitch: props.pitch !== 1.0 ? convertPitch(props.pitch) : undefined
+        },
+        {
+          responseType: 'blob', // 接收二进制数据
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            'Content-Type': 'application/json'
+          }
         }
+      )
+      
+      audioBlob = response.data
+      
+      // 保存到浏览器缓存
+      audioCache.set(cacheKey, audioBlob)
+      
+      // 限制缓存大小（最多保存 50 个音频）
+      if (audioCache.size > 50) {
+        const firstKey = audioCache.keys().next().value
+        audioCache.delete(firstKey)
       }
-    )
+    }
     
-    // 创建音频 URL（blob 数据在 response.data 中）
-    audioUrl = URL.createObjectURL(response.data)
+    // 创建音频 URL
+    audioUrl = URL.createObjectURL(audioBlob)
     
     // 创建 Audio 对象
     audio = new Audio(audioUrl)

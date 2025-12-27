@@ -102,3 +102,38 @@ async def health_check():
         "service": "edge-tts"
     }
 
+
+@router.get("/cache/stats")
+async def get_cache_stats(
+    current_user: User = Depends(get_current_user)
+):
+    """获取缓存统计信息"""
+    try:
+        stats = tts_service.get_cache_stats()
+        return stats
+    except Exception as e:
+        logger.error(f"获取缓存统计失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取缓存统计失败: {str(e)}")
+
+
+@router.delete("/cache")
+async def clear_cache(
+    max_age_days: Optional[int] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """清理缓存
+    
+    Args:
+        max_age_days: 删除超过指定天数的缓存文件，不提供则删除所有
+    """
+    try:
+        deleted_count = tts_service.clear_cache(max_age_days)
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+            "message": f"成功清理 {deleted_count} 个缓存文件"
+        }
+    except Exception as e:
+        logger.error(f"清理缓存失败: {e}")
+        raise HTTPException(status_code=500, detail=f"清理缓存失败: {str(e)}")
+

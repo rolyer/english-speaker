@@ -3,9 +3,16 @@ from typing import Optional
 import logging
 import asyncio
 import re
+import hashlib
+import os
+from pathlib import Path
 import edge_tts
 
 logger = logging.getLogger(__name__)
+
+# 音频缓存目录
+AUDIO_CACHE_DIR = Path("./audio_cache")
+AUDIO_CACHE_DIR.mkdir(exist_ok=True)
 
 
 def remove_emojis(text: str) -> str:
@@ -37,12 +44,31 @@ def remove_emojis(text: str) -> str:
     return emoji_pattern.sub('', text)
 
 
+def generate_audio_hash(text: str, language: str, voice: Optional[str], rate: Optional[str], pitch: Optional[str]) -> str:
+    """生成音频文件的哈希值
+    
+    Args:
+        text: 文本内容
+        language: 语言代码
+        voice: 语音名称
+        rate: 语速
+        pitch: 音调
+    
+    Returns:
+        哈希值字符串
+    """
+    # 组合所有参数生成唯一标识
+    content = f"{text}|{language}|{voice or ''}|{rate or ''}|{pitch or ''}"
+    return hashlib.md5(content.encode('utf-8')).hexdigest()
+
+
 class TTSService:
     """语音合成服务类 - 使用 Edge-TTS"""
     
     def __init__(self):
         self._voices_cache = None
         self._voices_cache_lock = asyncio.Lock()
+        self.cache_dir = AUDIO_CACHE_DIR
     
     async def get_voices(self):
         """获取可用的语音列表"""
@@ -99,13 +125,66 @@ class TTSService:
         
         return None
     
+    def get_cache_path(self, audio_hash: str) -> Path:
+        """获取缓存文件路径
+        
+        Args:
+            audio_hash: 音频哈希值
+        
+        Returns:
+            缓存文件路径
+        """
+        return self.cache_dir / f"{audio_hash}.mp3"
+    
+    def get_cached_audio(self, audio_hash: str) -> Optional[bytes]:
+        """从缓存获取音频数据
+        
+        Args:
+            audio_hash: 音频哈希值
+        
+        Returns:
+            音频字节数据，如果不存在则返回 None
+        """
+        cache_path = self.get_cache_path(audio_hash)
+        if cache_path.exists():
+            try:
+                with open(cache_path, 'rb') as f:
+                    audio_data = f.read()
+                logger.info(f"从缓存加载音频: {audio_hash}, 大小: {len(audio_data)} 字节")
+                return audio_data
+            except Exception as e:
+                logger.error(f"读取缓存文件失败: {e}")
+                return None
+        return None
+    
+    def save_to_cache(self, audio_hash: str, audio_data: bytes) -> bool:
+        """保存音频到缓存
+        
+        Args:
+            audio_hash: 音频哈希值
+            audio_data: 音频字节数据
+        
+        Returns:
+            是否保存成功
+        """
+        cache_path = self.get_cache_path(audio_hash)
+        try:
+            with open(cache_path, 'wb') as f:
+                f.write(audio_data)
+            logger.info(f"音频已缓存: {audio_hash}, 大小: {len(audio_data)} 字节")
+            return True
+        except Exception as e:
+            logger.error(f"保存缓存文件失败: {e}")
+            return False
+    
     async def synthesize_speech(
         self, 
         text: str, 
         language: str = "en-US", 
         voice: Optional[str] = None,
         rate: Optional[str] = None,
-        pitch: Optional[str] = None
+        pitch: Optional[str] = None,
+        use_cache: bool = True
     ) -> bytes:
         """合成语音
         
@@ -115,6 +194,7 @@ class TTSService:
             voice: 可选的语音名称，如 'en-US-AriaNeural'
             rate: 语速，格式如 '+0%', '-20%'，默认 '+0%'
             pitch: 音调，格式如 '+0Hz', '+5Hz'，默认 '+0Hz'
+            use_cache: 是否使用缓存，默认 True
         
         Returns:
             音频字节数据（MP3格式）
@@ -137,6 +217,15 @@ class TTSService:
             
             if not selected_voice:
                 raise ValueError(f"找不到适合语言 {language} 的语音")
+            
+            # 生成音频哈希
+            audio_hash = generate_audio_hash(cleaned_text, language, selected_voice, rate, pitch)
+            
+            # 检查缓存
+            if use_cache:
+                cached_audio = self.get_cached_audio(audio_hash)
+                if cached_audio:
+                    return cached_audio
             
             logger.info(f"使用语音 {selected_voice} 合成文本: {cleaned_text[:50]}...")
             
@@ -161,11 +250,78 @@ class TTSService:
                     audio_data += chunk["data"]
             
             logger.info(f"成功合成音频，大小: {len(audio_data)} 字节")
+            
+            # 保存到缓存
+            if use_cache and audio_data:
+                self.save_to_cache(audio_hash, audio_data)
+            
             return audio_data
             
         except Exception as e:
             logger.error(f"语音合成失败: {e}")
             raise
+    
+    def clear_cache(self, max_age_days: Optional[int] = None) -> int:
+        """清理缓存文件
+        
+        Args:
+            max_age_days: 删除超过指定天数的缓存文件，None 表示删除所有
+        
+        Returns:
+            删除的文件数量
+        """
+        import time
+        
+        deleted_count = 0
+        try:
+            for cache_file in self.cache_dir.glob("*.mp3"):
+                should_delete = False
+                
+                if max_age_days is None:
+                    should_delete = True
+                else:
+                    # 检查文件年龄
+                    file_age = time.time() - cache_file.stat().st_mtime
+                    if file_age > max_age_days * 86400:  # 转换为秒
+                        should_delete = True
+                
+                if should_delete:
+                    try:
+                        cache_file.unlink()
+                        deleted_count += 1
+                    except Exception as e:
+                        logger.error(f"删除缓存文件失败 {cache_file}: {e}")
+            
+            logger.info(f"清理了 {deleted_count} 个缓存文件")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"清理缓存失败: {e}")
+            return deleted_count
+    
+    def get_cache_stats(self) -> dict:
+        """获取缓存统计信息
+        
+        Returns:
+            缓存统计信息字典
+        """
+        try:
+            cache_files = list(self.cache_dir.glob("*.mp3"))
+            total_size = sum(f.stat().st_size for f in cache_files)
+            
+            return {
+                "count": len(cache_files),
+                "total_size": total_size,
+                "total_size_mb": round(total_size / (1024 * 1024), 2),
+                "cache_dir": str(self.cache_dir)
+            }
+        except Exception as e:
+            logger.error(f"获取缓存统计失败: {e}")
+            return {
+                "count": 0,
+                "total_size": 0,
+                "total_size_mb": 0,
+                "cache_dir": str(self.cache_dir)
+            }
     
     def is_available(self) -> bool:
         """检查TTS服务是否可用"""
