@@ -28,6 +28,28 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  async function loadLatestConversation() {
+    try {
+      loading.value = true
+      // 获取对话列表
+      const conversationList = await fetchConversations()
+      
+      // 如果有对话记录，加载最新的一条
+      if (conversationList && conversationList.length > 0) {
+        const latestConversation = conversationList[0]
+        await loadConversation(latestConversation.id)
+        return latestConversation
+      }
+      
+      return null
+    } catch (error) {
+      console.error('加载最新对话失败:', error)
+      throw error
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function sendMessage(message, conversationId = null) {
     loading.value = true
     try {
@@ -218,6 +240,7 @@ export const useChatStore = defineStore('chat', () => {
     selectedScenario,
     scenarios,
     fetchConversations,
+    loadLatestConversation,
     sendMessage,
     sendMessageStream,
     loadConversation,

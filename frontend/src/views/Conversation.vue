@@ -209,8 +209,21 @@ onMounted(async () => {
       chatStore.clearMessages()
     }
   } else if (!chatStore.currentConversationId) {
-    // 只有在没有当前会话ID时才清空消息（避免清除从其他页面带来的会话）
-    chatStore.clearMessages()
+    // 没有当前会话，尝试加载最新的对话
+    try {
+      const latestConversation = await chatStore.loadLatestConversation()
+      if (latestConversation) {
+        console.log('已自动加载最新对话')
+        await nextTick()
+        scrollToBottom()
+      } else {
+        // 没有历史对话，保持空白状态
+        console.log('没有历史对话记录')
+      }
+    } catch (error) {
+      console.error('加载最新对话失败:', error)
+      // 加载失败，保持空白状态
+    }
   }
   
   scrollToBottom()

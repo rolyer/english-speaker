@@ -236,8 +236,25 @@ function isLatestAssistantMessage(index) {
   return true
 }
 
-onMounted(() => {
-  // 不清空消息，保持从其他页面带来的会话状态
+onMounted(async () => {
+  // 如果没有当前会话，尝试加载最新的对话
+  if (!chatStore.currentConversationId) {
+    try {
+      const latestConversation = await chatStore.loadLatestConversation()
+      if (latestConversation) {
+        console.log('已自动加载最新对话')
+        await nextTick()
+        scrollToBottom()
+      } else {
+        // 没有历史对话，保持空白状态
+        console.log('没有历史对话记录')
+      }
+    } catch (error) {
+      console.error('加载最新对话失败:', error)
+      // 加载失败，保持空白状态
+    }
+  }
+  
   scrollToBottom()
 })
 </script>
