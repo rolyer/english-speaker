@@ -2,9 +2,39 @@
 from typing import Optional
 import logging
 import asyncio
+import re
 import edge_tts
 
 logger = logging.getLogger(__name__)
+
+
+def remove_emojis(text: str) -> str:
+    """移除文本中的 emoji 表情
+    
+    Args:
+        text: 原始文本
+    
+    Returns:
+        移除 emoji 后的文本
+    """
+    # Emoji 的 Unicode 范围（更精确的范围，避免误删中文等字符）
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # 表情符号 (Emoticons)
+        "\U0001F300-\U0001F5FF"  # 符号和象形文字 (Misc Symbols and Pictographs)
+        "\U0001F680-\U0001F6FF"  # 交通和地图符号 (Transport and Map)
+        "\U0001F1E0-\U0001F1FF"  # 旗帜 (Flags)
+        "\U0001F900-\U0001F9FF"  # 补充符号和象形文字 (Supplemental Symbols and Pictographs)
+        "\U0001FA00-\U0001FA6F"  # 扩展-A (Extended-A)
+        "\U0001FA70-\U0001FAFF"  # 符号和象形文字扩展-A (Symbols and Pictographs Extended-A)
+        "\U00002600-\U000027BF"  # 杂项符号和装饰符号 (Misc symbols)
+        "\U0001F004"             # 麻将牌
+        "\U0001F0CF"             # 扑克牌
+        "\U0001F170-\U0001F251"  # 封闭字符
+        "]+",
+        flags=re.UNICODE
+    )
+    return emoji_pattern.sub('', text)
 
 
 class TTSService:
@@ -93,6 +123,13 @@ class TTSService:
             raise ValueError("文本不能为空")
         
         try:
+            # 移除 emoji 表情
+            cleaned_text = remove_emojis(text).strip()
+            
+            # 如果清理后文本为空，返回错误
+            if not cleaned_text:
+                raise ValueError("文本清理后为空（可能只包含 emoji）")
+            
             # 查找合适的语音
             selected_voice = voice
             if not selected_voice:
@@ -101,12 +138,12 @@ class TTSService:
             if not selected_voice:
                 raise ValueError(f"找不到适合语言 {language} 的语音")
             
-            logger.info(f"使用语音 {selected_voice} 合成文本: {text[:50]}...")
+            logger.info(f"使用语音 {selected_voice} 合成文本: {cleaned_text[:50]}...")
             
             # 构建 communicate 参数
             # Edge-TTS 的 rate 和 pitch 参数直接传递给 communicate
             communicate_params = {
-                "text": text,
+                "text": cleaned_text,  # 使用清理后的文本
                 "voice": selected_voice
             }
             
