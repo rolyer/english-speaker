@@ -61,6 +61,10 @@ logs/
 *.sqlite
 *.sqlite3
 
+# Audio cache
+audio_cache/
+*.mp3
+
 # Docker
 .docker/
 
