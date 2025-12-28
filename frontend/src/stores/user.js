@@ -25,7 +25,13 @@ export const useUserStore = defineStore('user', () => {
   }
 
   function setUser(userData) {
-    user.value = userData
+    if (userData) {
+      // 确保触发响应式更新
+      user.value = { ...userData }
+      console.log('[UserStore] 用户信息已设置:', user.value)
+    } else {
+      user.value = null
+    }
   }
 
   async function login(username, password) {
