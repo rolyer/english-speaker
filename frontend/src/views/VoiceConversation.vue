@@ -1,66 +1,102 @@
 <template>
   <div class="voice-conversation-page">
     <div class="voice-header">
-      <h2>🎤 语音对话模式</h2>
-      <el-switch
-        v-model="voiceMode"
-        active-text="语音模式"
-        inactive-text="文本模式"
-        @change="handleModeChange"
+      <h2>🎤 语音对话</h2>
+      <el-select
+        v-model="chatStore.selectedScenario"
+        @change="handleScenarioChange"
         size="small"
-      />
+        class="scenario-select"
+      >
+        <el-option
+          v-for="scenario in chatStore.scenarios"
+          :key="scenario.value"
+          :label="scenario.icon + ' ' + scenario.label"
+          :value="scenario.value"
+        />
+      </el-select>
     </div>
     
-    <div class="conversation-container" ref="messagesContainer">
-      <div v-if="chatStore.messages.length === 0" class="empty-state">
-        <p>🎙️ 点击下方按钮开始语音对话</p>
-        <p class="hint">说出你的问题，AI老师会帮助你练习英语</p>
+    <!-- 语音对话主界面 -->
+    <div class="voice-main-container" ref="messagesContainer">
+      <!-- 空状态 -->
+      <div v-if="chatStore.messages.length === 0" class="voice-empty-state">
+        <div class="voice-assistant-avatar">
+          <div class="avatar-circle">
+            <span class="avatar-icon">🤖</span>
+          </div>
+          <div class="avatar-pulse"></div>
+        </div>
+        <h3>AI 英语老师</h3>
+        <p>点击下方麦克风按钮开始对话</p>
       </div>
       
-      <div
-        v-for="(message, index) in chatStore.messages"
-        :key="message.id"
-        :class="['message', message.role]"
-      >
-        <div class="message-content">
-          <div class="message-avatar">
-            <span v-if="message.role === 'user'">👤</span>
-            <span v-else>🤖</span>
+      <!-- 对话进行中 -->
+      <div v-else class="voice-conversation-active">
+        <!-- AI 头像和状态 -->
+        <div class="ai-avatar-section">
+          <div class="ai-avatar" :class="{ 'speaking': isAISpeaking }">
+            <span class="avatar-icon">🤖</span>
+            <div v-if="isAISpeaking" class="sound-wave">
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
           </div>
-          <div class="message-bubble">
-            <div class="message-text" v-html="formatMessage(message.content)"></div>
+          <div v-if="chatStore.loading && isWaitingForFirstResponse" class="ai-status">
+            AI 正在思考...
+          </div>
+          <div v-else-if="isAISpeaking" class="ai-status">
+            AI 正在说话...
+          </div>
+        </div>
+        
+        <!-- 最近的对话内容（简化显示） -->
+        <div class="recent-messages">
+          <div
+            v-for="message in recentMessages"
+            :key="message.id"
+            :class="['voice-message', message.role]"
+          >
+            <div class="voice-message-header">
+              <span class="speaker-label">
+                {{ message.role === 'user' ? '你' : 'AI老师' }}
+              </span>
+              <span class="message-time">{{ formatTime(message.created_at) }}</span>
+            </div>
             
-            <PronunciationScore
-              v-if="message.role === 'user' && message.pronunciation_score !== null && message.pronunciation_score !== undefined"
-              :score="message.pronunciation_score"
-              :feedback="message.pronunciation_feedback || []"
-              class="pronunciation-result"
-            />
+            <!-- 用户消息：显示发音评分 -->
+            <div v-if="message.role === 'user'" class="user-voice-content">
+              <PronunciationScore
+                v-if="message.pronunciation_score !== null && message.pronunciation_score !== undefined"
+                :score="message.pronunciation_score"
+                :feedback="message.pronunciation_feedback || []"
+              />
+              <div class="transcription">{{ message.content }}</div>
+            </div>
             
-            <div class="message-actions">
+            <!-- AI 消息：显示播放按钮 -->
+            <div v-else class="ai-voice-content">
               <AudioPlayer
-                v-if="message.role === 'assistant'"
                 :ref="el => { if (el) audioPlayerRefs[message.id] = el }"
                 :text="message.content"
                 :auto-play="false"
+                @play="handleAIPlay"
+                @pause="handleAIPause"
+                @end="handleAIEnd"
               />
-              <div class="message-time">{{ formatTime(message.created_at) }}</div>
+              <div class="transcription" v-if="showTranscription">{{ message.content }}</div>
             </div>
           </div>
         </div>
-      </div>
-      
-      <!-- 只在等待响应且没有消息时显示加载动画 -->
-      <div v-if="chatStore.loading && isWaitingForFirstResponse" class="message assistant">
-        <div class="message-content">
-          <div class="message-avatar">🤖</div>
-          <div class="message-bubble">
-            <div class="typing-indicator">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-          </div>
+        
+        <!-- 查看完整对话历史按钮 -->
+        <div v-if="chatStore.messages.length > 3" class="view-history">
+          <el-button text @click="toggleHistoryView">
+            {{ showFullHistory ? '收起历史' : `查看全部 ${chatStore.messages.length} 条对话` }}
+          </el-button>
         </div>
       </div>
     </div>
@@ -130,6 +166,9 @@ const isRecording = ref(false)
 const lastPlayedMessageId = ref(null) // 记录最后播放的消息ID
 const enableAutoPlay = ref(false) // 是否启用自动播放（只有在用户发送消息后才启用）
 const audioPlayerRefs = ref({}) // 存储所有 AudioPlayer 组件的引用
+const isAISpeaking = ref(false) // AI 是否正在说话
+const showTranscription = ref(false) // 是否显示文本转录
+const showFullHistory = ref(false) // 是否显示完整历史
 
 // 判断是否在等待第一个响应（还没有收到任何内容）
 const isWaitingForFirstResponse = computed(() => {
@@ -140,6 +179,14 @@ const isWaitingForFirstResponse = computed(() => {
   
   const lastMessage = chatStore.messages[chatStore.messages.length - 1]
   return lastMessage.role === 'user'
+})
+
+// 只显示最近的几条消息
+const recentMessages = computed(() => {
+  if (showFullHistory.value) {
+    return chatStore.messages
+  }
+  return chatStore.messages.slice(-3) // 只显示最近3条
 })
 
 function formatMessage(content) {
@@ -260,6 +307,31 @@ function scrollToBottom() {
     if (messagesContainer.value) {
       messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
     }
+  })
+}
+
+function handleScenarioChange() {
+  chatStore.clearMessages()
+  lastPlayedMessageId.value = null
+  ElMessage.success(`已切换到场景：${chatStore.selectedScenario}`)
+}
+
+function handleAIPlay() {
+  isAISpeaking.value = true
+}
+
+function handleAIPause() {
+  isAISpeaking.value = false
+}
+
+function handleAIEnd() {
+  isAISpeaking.value = false
+}
+
+function toggleHistoryView() {
+  showFullHistory.value = !showFullHistory.value
+  nextTick(() => {
+    scrollToBottom()
   })
 }
 
@@ -425,32 +497,264 @@ onUnmounted(() => {
     color: var(--primary-color);
     font-size: 1.5rem;
   }
+  
+  .scenario-select {
+    width: 150px;
+    
+    @media (max-width: 768px) {
+      width: 120px;
+    }
+  }
 }
 
-.conversation-container {
+// 语音对话主容器
+.voice-main-container {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
   scroll-behavior: smooth;
   
   @media (max-width: 768px) {
-    padding: 12px;
+    padding: 20px 12px;
   }
 }
 
-.empty-state {
+// 空状态 - 语音助手风格
+.voice-empty-state {
   text-align: center;
-  padding: 60px 20px;
-  color: var(--text-light);
+  animation: fadeIn 0.5s ease-out;
   
-  p {
-    margin: 10px 0;
-    font-size: 1.1rem;
+  .voice-assistant-avatar {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 30px;
+    
+    .avatar-circle {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary-color), #667eea);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      position: relative;
+      z-index: 2;
+      
+      .avatar-icon {
+        font-size: 60px;
+      }
+    }
+    
+    .avatar-pulse {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      opacity: 0.3;
+      animation: pulse 2s infinite;
+      z-index: 1;
+    }
   }
   
-  .hint {
+  h3 {
+    font-size: 1.5rem;
+    color: var(--text-color);
+    margin: 0 0 10px 0;
+  }
+  
+  p {
+    color: var(--text-light);
+    font-size: 1rem;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.1;
+  }
+}
+
+// 对话进行中
+.voice-conversation-active {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+// AI 头像区域
+.ai-avatar-section {
+  text-align: center;
+  margin-bottom: 40px;
+  
+  .ai-avatar {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color), #667eea);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    
+    .avatar-icon {
+      font-size: 50px;
+    }
+    
+    &.speaking {
+      animation: avatarPulse 1.5s infinite;
+      box-shadow: 0 4px 24px rgba(255, 107, 157, 0.4);
+    }
+    
+    .sound-wave {
+      position: absolute;
+      bottom: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 4px;
+      
+      span {
+        width: 3px;
+        height: 20px;
+        background: var(--primary-color);
+        border-radius: 2px;
+        animation: soundWave 1s infinite ease-in-out;
+        
+        &:nth-child(1) { animation-delay: 0s; }
+        &:nth-child(2) { animation-delay: 0.1s; }
+        &:nth-child(3) { animation-delay: 0.2s; }
+        &:nth-child(4) { animation-delay: 0.3s; }
+        &:nth-child(5) { animation-delay: 0.4s; }
+      }
+    }
+  }
+  
+  .ai-status {
+    color: var(--primary-color);
     font-size: 0.9rem;
-    opacity: 0.7;
+    font-weight: 500;
+    animation: fadeIn 0.3s ease-out;
+  }
+}
+
+@keyframes avatarPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes soundWave {
+  0%, 100% {
+    height: 10px;
+  }
+  50% {
+    height: 25px;
+  }
+}
+
+// 最近的消息
+.recent-messages {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.voice-message {
+  background: white;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  animation: slideUp 0.3s ease-out;
+  
+  &.user {
+    border-left: 4px solid var(--primary-color);
+  }
+  
+  &.assistant {
+    border-left: 4px solid #667eea;
+  }
+  
+  .voice-message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    
+    .speaker-label {
+      font-weight: 600;
+      color: var(--text-color);
+      font-size: 0.95rem;
+    }
+    
+    .message-time {
+      font-size: 0.75rem;
+      color: var(--text-light);
+    }
+  }
+  
+  .user-voice-content,
+  .ai-voice-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .transcription {
+    font-size: 0.9rem;
+    color: var(--text-light);
+    line-height: 1.6;
+    padding: 8px 12px;
+    background: var(--bg-light);
+    border-radius: 8px;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// 查看历史按钮
+.view-history {
+  margin-top: 20px;
+  text-align: center;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
