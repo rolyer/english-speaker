@@ -77,28 +77,31 @@
       </div>
       
       <div v-else class="text-input-section">
-        <el-input
-          v-model="inputMessage"
-          type="textarea"
-          :rows="mobile ? 3 : 2"
-          placeholder="输入你的问题..."
-          :disabled="chatStore.loading"
-          @keyup.ctrl.enter="handleSend"
-          @keyup.meta.enter="handleSend"
-          ref="inputRef"
-          class="input-textarea"
-        />
-        <div class="input-actions">
+        <div class="input-wrapper">
+          <el-input
+            v-model="inputMessage"
+            type="textarea"
+            :rows="mobile ? 3 : 2"
+            placeholder="输入你的问题，按回车发送..."
+            :disabled="chatStore.loading"
+            @keydown.enter.exact="handleEnterKey"
+            ref="inputRef"
+            class="input-textarea"
+          />
           <el-button
             type="primary"
             :loading="chatStore.loading"
             @click="handleSend"
             :disabled="!inputMessage.trim()"
-            size="large"
+            :icon="mobile ? 'Position' : ''"
+            circle
             class="send-button"
           >
-            发送
+            <el-icon v-if="!mobile"><Position /></el-icon>
           </el-button>
+        </div>
+        <div v-if="!mobile" class="input-hint">
+          按 Enter 发送，Shift + Enter 换行
         </div>
       </div>
     </div>
@@ -110,6 +113,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { isMobile } from '@/utils/device'
 import { ElMessage } from 'element-plus'
+import { Position } from '@element-plus/icons-vue'
 import AudioRecorder from '@/components/AudioRecorder.vue'
 import AudioPlayer from '@/components/AudioPlayer.vue'
 import PronunciationScore from '@/components/PronunciationScore.vue'
@@ -189,6 +193,18 @@ function handleModeChange() {
       inputRef.value?.focus()
     })
   }
+}
+
+// 处理回车键
+function handleEnterKey(event) {
+  // Shift + Enter 换行
+  if (event.shiftKey) {
+    return // 允许默认换行行为
+  }
+  
+  // 单独按 Enter 发送消息
+  event.preventDefault()
+  handleSend()
 }
 
 async function handleSend() {
@@ -568,28 +584,58 @@ onUnmounted(() => {
 }
 
 .text-input-section {
+  .input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+  }
+  
   .input-textarea {
-    margin-bottom: 12px;
+    flex: 1;
     
     :deep(.el-textarea__inner) {
       resize: none;
       font-size: 14px;
       line-height: 1.6;
+      padding-right: 60px; // 为发送按钮留出空间（桌面端）
+      
+      @media (max-width: 768px) {
+        padding-right: 12px; // 移动端按钮在外部
+      }
     }
-  }
-  
-  .input-actions {
-    display: flex;
-    justify-content: flex-end;
   }
   
   .send-button {
-    min-width: 80px;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
     
-    @media (max-width: 768px) {
-      width: 100%;
-      min-height: 44px;
+    @media (min-width: 769px) {
+      // 桌面端：绝对定位到输入框右下角
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      width: 40px;
+      height: 40px;
     }
+    
+    &:hover {
+      transform: scale(1.05);
+    }
+    
+    &:active {
+      transform: scale(0.95);
+    }
+  }
+  
+  .input-hint {
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: var(--text-light);
+    text-align: right;
+    opacity: 0.7;
   }
 }
 </style>
