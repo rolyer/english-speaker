@@ -586,40 +586,31 @@ onUnmounted(() => {
 .text-input-section {
   .input-wrapper {
     position: relative;
-    display: flex;
-    align-items: flex-end;
-    gap: 12px;
   }
   
   .input-textarea {
-    flex: 1;
+    width: 100%;
     
     :deep(.el-textarea__inner) {
       resize: none;
       font-size: 14px;
       line-height: 1.6;
-      padding-right: 60px; // 为发送按钮留出空间（桌面端）
+      padding-right: 52px; // 所有设备都为发送按钮留出空间
       
       @media (max-width: 768px) {
-        padding-right: 12px; // 移动端按钮在外部
+        font-size: 16px; // 移动端稍大一些，防止自动缩放
       }
     }
   }
   
   .send-button {
-    flex-shrink: 0;
-    width: 44px;
-    height: 44px;
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 40px;
+    height: 40px;
     font-size: 20px;
-    
-    @media (min-width: 769px) {
-      // 桌面端：绝对定位到输入框右下角
-      position: absolute;
-      right: 8px;
-      bottom: 8px;
-      width: 40px;
-      height: 40px;
-    }
+    transition: transform 0.2s ease;
     
     &:hover {
       transform: scale(1.05);
