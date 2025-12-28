@@ -353,17 +353,54 @@ async def translate_text(
     try:
         # 构建翻译提示词
         if request.source_lang == "en" and request.target_lang == "zh":
-            prompt = f"请将以下英文翻译成中文，只返回翻译结果，不要添加任何解释：\n\n{request.text}"
+            prompt = f"""你是一个专业的英译中翻译助手。请将以下英文内容翻译成中文。
+
+要求：
+1. 只返回中文翻译结果
+2. 不要添加任何解释或说明
+3. 保持原文的格式和换行
+4. 保持原文的语气和情感
+5. 如果有 Markdown 格式（如 **加粗**），请保留格式标记
+
+英文原文：
+{request.text}
+
+中文翻译："""
         elif request.source_lang == "zh" and request.target_lang == "en":
-            prompt = f"Please translate the following Chinese to English, return only the translation without any explanation:\n\n{request.text}"
+            prompt = f"""You are a professional Chinese-to-English translator. Please translate the following Chinese content to English.
+
+Requirements:
+1. Return only the English translation
+2. Do not add any explanations
+3. Keep the original format and line breaks
+4. Keep the original tone and emotion
+5. If there are Markdown formats (like **bold**), keep the format markers
+
+Chinese original:
+{request.text}
+
+English translation:"""
         else:
             raise HTTPException(status_code=400, detail="不支持的语言对")
         
         # 使用 AI 服务进行翻译
         translation = await ai_service.chat(prompt)
         
+        # 清理翻译结果（移除可能的前缀）
+        translation = translation.strip()
+        
+        # 移除可能的"中文翻译："或"English translation:"前缀
+        prefixes_to_remove = [
+            "中文翻译：", "中文翻译:", "翻译：", "翻译:",
+            "English translation:", "Translation:", "翻译结果：", "翻译结果:"
+        ]
+        for prefix in prefixes_to_remove:
+            if translation.startswith(prefix):
+                translation = translation[len(prefix):].strip()
+                break
+        
         return TranslateResponse(
-            translation=translation.strip(),
+            translation=translation,
             source_lang=request.source_lang,
             target_lang=request.target_lang
         )
