@@ -93,12 +93,10 @@
                 :score="message.pronunciation_score"
                 :feedback="message.pronunciation_feedback || []"
               />
-              <div v-if="messageStates[message.id]?.showText" class="transcription">
-                {{ message.content }}
-              </div>
+              <div v-if="messageStates[message.id]?.showText" class="transcription" v-html="formatMessage(message.content)"></div>
               <div v-if="messageStates[message.id]?.translation" class="translation">
                 <div class="translation-label">翻译：</div>
-                {{ messageStates[message.id].translation }}
+                <div class="translation-content" v-html="formatMessage(messageStates[message.id].translation)"></div>
               </div>
             </div>
             
@@ -112,12 +110,10 @@
                 @pause="handleAIPause"
                 @end="handleAIEnd"
               />
-              <div v-if="messageStates[message.id]?.showText" class="transcription">
-                {{ message.content }}
-              </div>
+              <div v-if="messageStates[message.id]?.showText" class="transcription" v-html="formatMessage(message.content)"></div>
               <div v-if="messageStates[message.id]?.translation" class="translation">
                 <div class="translation-label">翻译：</div>
-                {{ messageStates[message.id].translation }}
+                <div class="translation-content" v-html="formatMessage(messageStates[message.id].translation)"></div>
               </div>
             </div>
           </div>
@@ -225,7 +221,34 @@ const recentMessages = computed(() => {
 })
 
 function formatMessage(content) {
-  return content.replace(/\n/g, '<br>')
+  if (!content) return ''
+  
+  // 转义 HTML 特殊字符
+  let formatted = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  
+  // 处理 Markdown 语法（注意顺序很重要）
+  
+  // 1. 行内代码：`code`（先处理，避免代码内的 * 被误解析）
+  formatted = formatted.replace(/`([^`]+?)`/g, '<code>$1</code>')
+  
+  // 2. 加粗：**text** 或 __text__（必须在斜体之前处理）
+  formatted = formatted.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
+  formatted = formatted.replace(/__([^_]+?)__/g, '<strong>$1</strong>')
+  
+  // 3. 斜体：*text* 或 _text_
+  formatted = formatted.replace(/\*([^*]+?)\*/g, '<em>$1</em>')
+  formatted = formatted.replace(/_([^_]+?)_/g, '<em>$1</em>')
+  
+  // 4. 删除线：~~text~~
+  formatted = formatted.replace(/~~([^~]+?)~~/g, '<del>$1</del>')
+  
+  // 5. 换行：\n
+  formatted = formatted.replace(/\n/g, '<br>')
+  
+  return formatted
 }
 
 function formatTime(timeString) {
@@ -837,12 +860,44 @@ onUnmounted(() => {
     background: var(--bg-light);
     border-radius: 8px;
     animation: fadeIn 0.3s ease-out;
+    
+    // 支持 HTML 格式
+    p {
+      margin: 0.5em 0;
+      
+      &:first-child {
+        margin-top: 0;
+      }
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+    
+    strong {
+      font-weight: 600;
+      color: var(--text-color);
+    }
+    
+    em {
+      font-style: italic;
+    }
+    
+    del {
+      text-decoration: line-through;
+      opacity: 0.7;
+    }
+    
+    code {
+      background: rgba(0, 0, 0, 0.1);
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 0.85em;
+    }
   }
   
   .translation {
-    font-size: 0.9rem;
-    color: var(--text-color);
-    line-height: 1.6;
     padding: 8px 12px;
     background: #e3f2fd;
     border-radius: 8px;
@@ -854,6 +909,46 @@ onUnmounted(() => {
       color: #2196f3;
       font-weight: 600;
       margin-bottom: 4px;
+    }
+    
+    .translation-content {
+      font-size: 0.9rem;
+      color: var(--text-color);
+      line-height: 1.6;
+      
+      // 支持 HTML 格式
+      p {
+        margin: 0.5em 0;
+        
+        &:first-child {
+          margin-top: 0;
+        }
+        
+        &:last-child {
+          margin-bottom: 0;
+        }
+      }
+      
+      strong {
+        font-weight: 600;
+      }
+      
+      em {
+        font-style: italic;
+      }
+      
+      del {
+        text-decoration: line-through;
+        opacity: 0.7;
+      }
+      
+      code {
+        background: rgba(0, 0, 0, 0.05);
+        padding: 2px 4px;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 0.85em;
+      }
     }
   }
 }
