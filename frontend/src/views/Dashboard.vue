@@ -175,7 +175,7 @@ onMounted(() => {
   margin: 0 auto;
   
   @media (max-width: 768px) {
-    min-height: calc(100vh - 60px);
+    min-height: calc(100vh - 56px); // 移动端顶部导航高度
     padding: 16px;
   }
 }

@@ -41,7 +41,7 @@ const userStore = useUserStore()
   padding: 20px;
   
   @media (max-width: 768px) {
-    min-height: calc(100vh - 60px);
+    min-height: calc(100vh - 56px); // 移动端顶部导航高度
   }
 }
 

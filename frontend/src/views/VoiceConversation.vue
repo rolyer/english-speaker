@@ -396,7 +396,7 @@ onUnmounted(() => {
   background: var(--bg-light);
   
   @media (max-width: 768px) {
-    height: calc(100vh - 60px);
+    height: calc(100vh - 56px); // 移动端顶部导航高度
   }
 }
 
