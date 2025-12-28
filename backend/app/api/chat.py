@@ -330,6 +330,48 @@ async def get_conversation(
     )
 
 
+class TranslateRequest(BaseModel):
+    """翻译请求模型"""
+    text: str
+    source_lang: str = "en"
+    target_lang: str = "zh"
+
+
+class TranslateResponse(BaseModel):
+    """翻译响应模型"""
+    translation: str
+    source_lang: str
+    target_lang: str
+
+
+@router.post("/translate", response_model=TranslateResponse)
+async def translate_text(
+    request: TranslateRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """翻译文本"""
+    try:
+        # 构建翻译提示词
+        if request.source_lang == "en" and request.target_lang == "zh":
+            prompt = f"请将以下英文翻译成中文，只返回翻译结果，不要添加任何解释：\n\n{request.text}"
+        elif request.source_lang == "zh" and request.target_lang == "en":
+            prompt = f"Please translate the following Chinese to English, return only the translation without any explanation:\n\n{request.text}"
+        else:
+            raise HTTPException(status_code=400, detail="不支持的语言对")
+        
+        # 使用 AI 服务进行翻译
+        translation = await ai_service.chat(prompt)
+        
+        return TranslateResponse(
+            translation=translation.strip(),
+            source_lang=request.source_lang,
+            target_lang=request.target_lang
+        )
+    except Exception as e:
+        logger.error(f"翻译失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"翻译失败: {str(e)}")
+
+
 @router.get("/health")
 async def health_check():
     """AI服务健康检查"""

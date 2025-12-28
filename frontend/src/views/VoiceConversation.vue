@@ -64,7 +64,26 @@
               <span class="speaker-label">
                 {{ message.role === 'user' ? '你' : 'AI老师' }}
               </span>
-              <span class="message-time">{{ formatTime(message.created_at) }}</span>
+              <div class="header-actions">
+                <span class="message-time">{{ formatTime(message.created_at) }}</span>
+                <el-dropdown trigger="click" @command="(cmd) => handleMessageCommand(cmd, message)">
+                  <el-button text circle size="small" class="message-menu-btn">
+                    <el-icon><MoreFilled /></el-icon>
+                  </el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item :command="'toggleText'">
+                        <el-icon><Document /></el-icon>
+                        {{ messageStates[message.id]?.showText ? '隐藏文本' : '显示文本' }}
+                      </el-dropdown-item>
+                      <el-dropdown-item :command="'translate'" :disabled="messageStates[message.id]?.translating">
+                        <el-icon><Connection /></el-icon>
+                        {{ messageStates[message.id]?.translation ? '隐藏翻译' : '显示翻译' }}
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
             </div>
             
             <!-- 用户消息：显示发音评分 -->
@@ -74,7 +93,13 @@
                 :score="message.pronunciation_score"
                 :feedback="message.pronunciation_feedback || []"
               />
-              <div class="transcription">{{ message.content }}</div>
+              <div v-if="messageStates[message.id]?.showText" class="transcription">
+                {{ message.content }}
+              </div>
+              <div v-if="messageStates[message.id]?.translation" class="translation">
+                <div class="translation-label">翻译：</div>
+                {{ messageStates[message.id].translation }}
+              </div>
             </div>
             
             <!-- AI 消息：显示播放按钮 -->
@@ -87,7 +112,13 @@
                 @pause="handleAIPause"
                 @end="handleAIEnd"
               />
-              <div class="transcription" v-if="showTranscription">{{ message.content }}</div>
+              <div v-if="messageStates[message.id]?.showText" class="transcription">
+                {{ message.content }}
+              </div>
+              <div v-if="messageStates[message.id]?.translation" class="translation">
+                <div class="translation-label">翻译：</div>
+                {{ messageStates[message.id].translation }}
+              </div>
             </div>
           </div>
         </div>
@@ -146,15 +177,16 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch, reactive } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { isMobile } from '@/utils/device'
 import { ElMessage } from 'element-plus'
-import { Position } from '@element-plus/icons-vue'
+import { Position, MoreFilled, Document, Connection } from '@element-plus/icons-vue'
 import AudioRecorder from '@/components/AudioRecorder.vue'
 import AudioPlayer from '@/components/AudioPlayer.vue'
 import PronunciationScore from '@/components/PronunciationScore.vue'
 import api from '@/services/api'
+import axios from 'axios'
 
 const chatStore = useChatStore()
 const inputMessage = ref('')
@@ -169,6 +201,9 @@ const audioPlayerRefs = ref({}) // 存储所有 AudioPlayer 组件的引用
 const isAISpeaking = ref(false) // AI 是否正在说话
 const showTranscription = ref(false) // 是否显示文本转录
 const showFullHistory = ref(false) // 是否显示完整历史
+
+// 每条消息的状态（显示文本、翻译等）
+const messageStates = reactive({})
 
 // 判断是否在等待第一个响应（还没有收到任何内容）
 const isWaitingForFirstResponse = computed(() => {
@@ -333,6 +368,63 @@ function toggleHistoryView() {
   nextTick(() => {
     scrollToBottom()
   })
+}
+
+// 初始化消息状态
+function initMessageState(messageId) {
+  if (!messageStates[messageId]) {
+    messageStates[messageId] = {
+      showText: false,
+      translation: null,
+      translating: false
+    }
+  }
+}
+
+// 处理消息菜单命令
+async function handleMessageCommand(command, message) {
+  initMessageState(message.id)
+  
+  if (command === 'toggleText') {
+    // 切换文本显示
+    messageStates[message.id].showText = !messageStates[message.id].showText
+  } else if (command === 'translate') {
+    // 切换翻译
+    if (messageStates[message.id].translation) {
+      // 如果已有翻译，则隐藏
+      messageStates[message.id].translation = null
+    } else {
+      // 否则请求翻译
+      await translateMessage(message)
+    }
+  }
+}
+
+// 翻译消息
+async function translateMessage(message) {
+  initMessageState(message.id)
+  
+  if (messageStates[message.id].translating) {
+    return
+  }
+  
+  messageStates[message.id].translating = true
+  
+  try {
+    // 调用翻译 API
+    const response = await axios.post('/api/chat/translate', {
+      text: message.content,
+      source_lang: 'en',
+      target_lang: 'zh'
+    })
+    
+    messageStates[message.id].translation = response.data.translation
+  } catch (error) {
+    console.error('翻译失败:', error)
+    ElMessage.error('翻译失败，请重试')
+  } finally {
+    messageStates[message.id].translating = false
+  }
 }
 
 // 判断是否是最新的AI消息
@@ -709,9 +801,24 @@ onUnmounted(() => {
       font-size: 0.95rem;
     }
     
-    .message-time {
-      font-size: 0.75rem;
-      color: var(--text-light);
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      
+      .message-time {
+        font-size: 0.75rem;
+        color: var(--text-light);
+      }
+      
+      .message-menu-btn {
+        opacity: 0.6;
+        transition: opacity 0.2s;
+        
+        &:hover {
+          opacity: 1;
+        }
+      }
     }
   }
   
@@ -729,6 +836,25 @@ onUnmounted(() => {
     padding: 8px 12px;
     background: var(--bg-light);
     border-radius: 8px;
+    animation: fadeIn 0.3s ease-out;
+  }
+  
+  .translation {
+    font-size: 0.9rem;
+    color: var(--text-color);
+    line-height: 1.6;
+    padding: 8px 12px;
+    background: #e3f2fd;
+    border-radius: 8px;
+    border-left: 3px solid #2196f3;
+    animation: fadeIn 0.3s ease-out;
+    
+    .translation-label {
+      font-size: 0.75rem;
+      color: #2196f3;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
   }
 }
 
