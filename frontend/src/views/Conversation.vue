@@ -47,7 +47,8 @@
         </div>
       </div>
       
-      <div v-if="chatStore.loading" class="message assistant">
+      <!-- 只在等待响应且没有消息时显示加载动画 -->
+      <div v-if="chatStore.loading && isWaitingForFirstResponse" class="message assistant">
         <div class="message-content">
           <div class="message-avatar">🤖</div>
           <div class="message-bubble">
@@ -110,6 +111,17 @@ const inputMessage = ref('')
 const inputRef = ref(null)
 const messagesContainer = ref(null)
 const mobile = computed(() => isMobile())
+
+// 判断是否在等待第一个响应（还没有收到任何内容）
+const isWaitingForFirstResponse = computed(() => {
+  if (!chatStore.loading) return false
+  
+  // 如果消息列表为空，或者最后一条消息是用户消息，说明正在等待 AI 响应
+  if (chatStore.messages.length === 0) return true
+  
+  const lastMessage = chatStore.messages[chatStore.messages.length - 1]
+  return lastMessage.role === 'user'
+})
 
 function formatMessage(content) {
   // 简单的Markdown渲染（换行）
