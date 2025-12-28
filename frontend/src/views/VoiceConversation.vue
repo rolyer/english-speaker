@@ -1093,15 +1093,15 @@ onUnmounted(() => {
   }
   
   &.user-bubble {
-    background: linear-gradient(135deg, var(--primary-color), #ff8fab);
+    background: linear-gradient(135deg, #ff6b9d, #ffa8c5);
     color: white;
     box-shadow: 0 2px 6px rgba(255, 107, 157, 0.3);
   }
   
   &.ai-bubble {
-    background: #f5f7fa;
-    color: var(--text-color);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
   }
   
   .play-icon {
