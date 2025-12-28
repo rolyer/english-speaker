@@ -461,6 +461,8 @@ function handleAIPause() {
 
 function handleAIEnd() {
   isAISpeaking.value = false
+  // 播放结束时清除当前播放ID
+  currentPlayingId.value = null
 }
 
 function toggleHistoryView() {
@@ -565,12 +567,18 @@ async function playAIAudio(message) {
 // 播放消息音频
 async function playMessageAudio(message) {
   try {
+    // 先停止当前正在播放的音频
+    if (currentPlayingId.value && currentPlayingId.value !== message.id) {
+      stopAudio()
+    }
+    
     currentPlayingId.value = message.id
     
     // 使用 AudioPlayer 组件的引用播放
     const audioPlayer = audioPlayerRefs.value[message.id]
     if (audioPlayer && typeof audioPlayer.play === 'function') {
       await audioPlayer.play()
+      // AudioPlayer 的 end 事件会触发 handleAIEnd，那里会清除 currentPlayingId
     } else {
       // 如果没有 AudioPlayer 引用，直接调用 TTS API
       const response = await axios.post('/api/tts/synthesize', {
@@ -612,18 +620,24 @@ async function playMessageAudio(message) {
 // 停止音频播放
 function stopAudio() {
   if (currentPlayingId.value) {
-    const audio = audioCache.get(currentPlayingId.value)
+    const playingId = currentPlayingId.value
+    
+    // 停止直接创建的 Audio 元素
+    const audio = audioCache.get(playingId)
     if (audio) {
       audio.pause()
       audio.currentTime = 0
     }
     
-    const audioPlayer = audioPlayerRefs.value[currentPlayingId.value]
+    // 停止 AudioPlayer 组件
+    const audioPlayer = audioPlayerRefs.value[playingId]
     if (audioPlayer && typeof audioPlayer.pause === 'function') {
       audioPlayer.pause()
     }
     
+    // 清除播放状态
     currentPlayingId.value = null
+    isAISpeaking.value = false
   }
 }
 
