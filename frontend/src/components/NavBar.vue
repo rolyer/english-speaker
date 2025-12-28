@@ -1,7 +1,6 @@
 <template>
-  <div class="navbar" :class="{ 'mobile': mobile }">
-    <!-- 桌面端顶部导航栏 -->
-    <div v-if="!mobile" class="navbar-desktop">
+  <div class="navbar">
+    <div class="navbar-container">
       <div class="navbar-brand">
         <router-link to="/" class="brand-link">
           <span class="brand-icon">🎓</span>
@@ -53,20 +52,6 @@
         </template>
       </div>
     </div>
-    
-    <!-- 移动端底部导航栏 -->
-    <div v-else class="navbar-mobile">
-      <router-link
-        v-for="item in mobileNavItems"
-        :key="item.path"
-        :to="item.path"
-        class="mobile-nav-item"
-        :class="{ active: $route.path === item.path }"
-      >
-        <el-icon><component :is="icons[item.icon]" /></el-icon>
-        <span class="nav-label">{{ item.label }}</span>
-      </router-link>
-    </div>
   </div>
 </template>
 
@@ -74,7 +59,6 @@
 import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { isMobile } from '@/utils/device'
 import {
   HomeFilled,
   ChatDotRound,
@@ -90,14 +74,12 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-const mobile = computed(() => isMobile())
-
 // 监听用户信息变化
 watch(() => userStore.user, (newUser) => {
   console.log('[NavBar] 用户信息变化:', newUser)
 }, { deep: true })
 
-// 确保用户信息已加载
+// 组件挂载时的初始化
 onMounted(async () => {
   console.log('[NavBar] onMounted - 检查用户状态:', {
     isAuthenticated: userStore.isAuthenticated,
@@ -105,6 +87,7 @@ onMounted(async () => {
     user: userStore.user
   })
   
+  // 确保用户信息已加载
   if (userStore.isAuthenticated && !userStore.user) {
     console.log('[NavBar] 正在获取用户信息...')
     try {
@@ -143,26 +126,6 @@ const navItems = computed(() => {
   return items
 })
 
-const mobileNavItems = computed(() => {
-  const items = [
-    { path: '/', label: '首页', icon: 'HomeFilled' }
-  ]
-  
-  if (userStore.isAuthenticated) {
-    items.push(
-      { path: '/conversation', label: '对话', icon: 'ChatDotRound' },
-      { path: '/voice', label: '语音', icon: 'Microphone' },
-      { path: '/dashboard', label: '进度', icon: 'DataAnalysis' }
-    )
-  } else {
-    items.push(
-      { path: '/login', label: '登录', icon: 'UserFilled' }
-    )
-  }
-  
-  return items
-})
-
 function handleCommand(command) {
   if (command === 'dashboard') {
     router.push('/dashboard')
@@ -179,17 +142,12 @@ function handleCommand(command) {
   background: white;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   z-index: 1000;
-  
-  &.mobile {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
-  }
+  position: sticky;
+  top: 0;
+  width: 100%;
 }
 
-.navbar-desktop {
+.navbar-container {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -197,6 +155,11 @@ function handleCommand(command) {
   height: 64px;
   max-width: 1200px;
   margin: 0 auto;
+  
+  @media (max-width: 768px) {
+    padding: 0 16px;
+    height: 56px;
+  }
 }
 
 .navbar-brand {
@@ -326,53 +289,6 @@ function handleCommand(command) {
     
     &:hover .dropdown-icon {
       transform: translateY(2px);
-    }
-  }
-}
-
-.navbar-mobile {
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  height: 60px;
-  padding: 0 8px;
-  background: white;
-  border-top: 1px solid var(--border-color);
-}
-
-.mobile-nav-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  padding: 8px 4px;
-  text-decoration: none;
-  color: var(--text-light);
-  transition: all 0.3s;
-  min-height: 44px; // 触摸友好
-  
-  .el-icon {
-    font-size: 24px;
-    margin-bottom: 4px;
-  }
-  
-  .nav-label {
-    font-size: 0.75rem;
-  }
-  
-  &:hover,
-  &.active {
-    color: var(--primary-color);
-    
-    .el-icon {
-      transform: scale(1.1);
-    }
-  }
-  
-  &.active {
-    .el-icon {
-      color: var(--primary-color);
     }
   }
 }
