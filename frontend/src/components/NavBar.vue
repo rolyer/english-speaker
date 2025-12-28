@@ -18,7 +18,7 @@
           :class="{ active: $route.path === item.path }"
         >
           <el-icon><component :is="icons[item.icon]" /></el-icon>
-          <span>{{ item.label }}</span>
+          <span class="nav-label">{{ item.label }}</span>
         </router-link>
       </nav>
       
@@ -213,6 +213,13 @@ function handleCommand(command) {
       font-size: 1.5rem;
     }
     
+    .brand-text {
+      // 在小屏幕上隐藏品牌文字
+      @media (max-width: 900px) {
+        display: none;
+      }
+    }
+    
     &:hover {
       opacity: 0.8;
     }
@@ -234,6 +241,24 @@ function handleCommand(command) {
     text-decoration: none;
     color: var(--text-color);
     transition: all 0.3s;
+    white-space: nowrap; // 防止文字换行
+    
+    .el-icon {
+      flex-shrink: 0; // 图标不缩小
+      font-size: 18px;
+    }
+    
+    .nav-label {
+      // 在中等屏幕上隐藏导航文字，只显示图标
+      @media (max-width: 1024px) {
+        display: none;
+      }
+    }
+    
+    // 在小屏幕上减小内边距
+    @media (max-width: 1024px) {
+      padding: 8px 12px;
+    }
     
     &:hover {
       background: var(--bg-light);
@@ -281,12 +306,22 @@ function handleCommand(command) {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      
+      // 在小屏幕上隐藏用户名
+      @media (max-width: 900px) {
+        display: none;
+      }
     }
     
     .dropdown-icon {
       font-size: 14px;
       color: var(--text-light);
       transition: transform 0.3s ease;
+      
+      // 在小屏幕上隐藏下拉图标
+      @media (max-width: 900px) {
+        display: none;
+      }
     }
     
     &:hover .dropdown-icon {
