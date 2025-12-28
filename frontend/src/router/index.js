@@ -46,8 +46,17 @@ const router = createRouter({
 })
 
 // 路由守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
+  
+  // 如果已登录但用户信息为空，则获取用户信息
+  if (userStore.isAuthenticated && !userStore.user) {
+    try {
+      await userStore.fetchUserInfo()
+    } catch (error) {
+      console.error('获取用户信息失败:', error)
+    }
+  }
   
   if (to.meta.requiresAuth && !userStore.isAuthenticated) {
     next({ name: 'Login', query: { redirect: to.fullPath } })

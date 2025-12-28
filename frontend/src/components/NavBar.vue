@@ -1,7 +1,7 @@
 <template>
-  <div class="navbar" :class="{ 'mobile': isMobile }">
+  <div class="navbar" :class="{ 'mobile': mobile }">
     <!-- 桌面端顶部导航栏 -->
-    <div v-if="!isMobile" class="navbar-desktop">
+    <div v-if="!mobile" class="navbar-desktop">
       <div class="navbar-brand">
         <router-link to="/" class="brand-link">
           <span class="brand-icon">🎓</span>
@@ -9,7 +9,7 @@
         </router-link>
       </div>
       
-      <nav class="navbar-nav">
+      <nav v-if="userStore.isAuthenticated" class="navbar-nav">
         <router-link
           v-for="item in navItems"
           :key="item.path"
@@ -24,29 +24,32 @@
       
       <div class="navbar-actions">
         <template v-if="userStore.isAuthenticated">
-          <el-dropdown @command="handleCommand">
-            <span class="user-info">
-              <el-avatar :size="32" :icon="UserFilled" />
-              <span class="username">{{ userStore.user?.username }}</span>
-              <el-icon><component :is="ArrowDown" /></el-icon>
-            </span>
+          <el-dropdown @command="handleCommand" trigger="click">
+            <div class="user-info">
+              <el-avatar :size="36" class="user-avatar">
+                <el-icon><UserFilled /></el-icon>
+              </el-avatar>
+              <span v-if="userStore.user" class="username">{{ userStore.user.username }}</span>
+              <span v-else class="username">加载中...</span>
+              <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
+            </div>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="dashboard">
-                  <el-icon><component :is="DataAnalysis" /></el-icon>
-                  学习进度
+                  <el-icon><DataAnalysis /></el-icon>
+                  <span>学习进度</span>
                 </el-dropdown-item>
                 <el-dropdown-item command="logout" divided>
-                  <el-icon><component :is="SwitchButton" /></el-icon>
-                  退出登录
+                  <el-icon><SwitchButton /></el-icon>
+                  <span>退出登录</span>
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
         </template>
         <template v-else>
-          <el-button @click="$router.push('/login')" size="small">登录</el-button>
-          <el-button type="primary" @click="$router.push('/register')" size="small">注册</el-button>
+          <el-button @click="$router.push('/login')" size="default">登录</el-button>
+          <el-button type="primary" @click="$router.push('/register')" size="default">注册</el-button>
         </template>
       </div>
     </div>
@@ -68,7 +71,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { isMobile } from '@/utils/device'
@@ -88,6 +91,30 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const mobile = computed(() => isMobile())
+
+// 监听用户信息变化
+watch(() => userStore.user, (newUser) => {
+  console.log('[NavBar] 用户信息变化:', newUser)
+}, { deep: true })
+
+// 确保用户信息已加载
+onMounted(async () => {
+  console.log('[NavBar] onMounted - 检查用户状态:', {
+    isAuthenticated: userStore.isAuthenticated,
+    hasUser: !!userStore.user,
+    user: userStore.user
+  })
+  
+  if (userStore.isAuthenticated && !userStore.user) {
+    console.log('[NavBar] 正在获取用户信息...')
+    try {
+      await userStore.fetchUserInfo()
+      console.log('[NavBar] 用户信息获取成功:', userStore.user)
+    } catch (error) {
+      console.error('[NavBar] 获取用户信息失败:', error)
+    }
+  }
+})
 
 // 图标映射
 const icons = {
@@ -228,19 +255,42 @@ function handleCommand(command) {
   .user-info {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 8px;
-    transition: background 0.3s;
+    padding: 6px 12px;
+    border-radius: 20px;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
     
     &:hover {
       background: var(--bg-light);
+      border-color: var(--border-color);
+    }
+    
+    .user-avatar {
+      background: linear-gradient(135deg, var(--primary-color), #667eea);
+      color: white;
+      flex-shrink: 0;
     }
     
     .username {
-      font-size: 0.9rem;
+      font-size: 0.95rem;
+      font-weight: 500;
       color: var(--text-color);
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .dropdown-icon {
+      font-size: 14px;
+      color: var(--text-light);
+      transition: transform 0.3s ease;
+    }
+    
+    &:hover .dropdown-icon {
+      transform: translateY(2px);
     }
   }
 }
@@ -288,6 +338,38 @@ function handleCommand(command) {
   &.active {
     .el-icon {
       color: var(--primary-color);
+    }
+  }
+}
+
+// 下拉菜单样式优化
+:deep(.el-dropdown-menu) {
+  padding: 8px 0;
+  min-width: 160px;
+  
+  .el-dropdown-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    
+    .el-icon {
+      font-size: 16px;
+    }
+    
+    &:hover {
+      background: var(--bg-light);
+      color: var(--primary-color);
+    }
+  }
+  
+  .el-dropdown-menu__item--divided {
+    border-top: 1px solid var(--border-color);
+    margin-top: 4px;
+    
+    &:hover {
+      color: var(--el-color-danger);
     }
   }
 }
