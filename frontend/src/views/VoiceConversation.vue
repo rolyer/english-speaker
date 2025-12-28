@@ -53,69 +53,144 @@
           </div>
         </div>
         
-        <!-- 最近的对话内容（简化显示） -->
+        <!-- 最近的对话内容（语音气泡样式） -->
         <div class="recent-messages">
           <div
             v-for="message in recentMessages"
             :key="message.id"
-            :class="['voice-message', message.role]"
+            :class="['voice-message-row', message.role]"
           >
-            <div class="voice-message-header">
-              <span class="speaker-label">
-                {{ message.role === 'user' ? '你' : 'AI老师' }}
-              </span>
-              <div class="header-actions">
-                <span class="message-time">{{ formatTime(message.created_at) }}</span>
-                <el-dropdown trigger="click" @command="(cmd) => handleMessageCommand(cmd, message)">
-                  <el-button text circle size="small" class="message-menu-btn">
-                    <el-icon><MoreFilled /></el-icon>
-                  </el-button>
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item :command="'toggleText'">
-                        <el-icon><Document /></el-icon>
-                        {{ messageStates[message.id]?.showText ? '隐藏文本' : '显示文本' }}
-                      </el-dropdown-item>
-                      <el-dropdown-item :command="'translate'" :disabled="messageStates[message.id]?.translating">
-                        <el-icon><Connection /></el-icon>
-                        {{ messageStates[message.id]?.translation ? '隐藏翻译' : '显示翻译' }}
-                      </el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
+            <!-- 用户消息：头像在右侧 -->
+            <template v-if="message.role === 'user'">
+              <!-- 用户头像 -->
+              <div class="message-avatar user-avatar">
+                <span>👤</span>
               </div>
-            </div>
+              
+              <!-- 消息卡片 -->
+              <div class="message-card user-card">
+                <div class="card-content">
+                  <!-- 语音气泡 -->
+                  <div class="voice-bubble user-bubble" @click="playUserAudio(message)">
+                    <el-icon class="play-icon" :class="{ 'playing': isPlayingMessage(message.id) }">
+                      <VideoPlay v-if="!isPlayingMessage(message.id)" />
+                      <VideoPause v-else />
+                    </el-icon>
+                    <div class="sound-wave-mini" :class="{ 'active': isPlayingMessage(message.id) }">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                    <span class="voice-duration">{{ getAudioDuration(message) }}"</span>
+                    
+                    <!-- 发音评分（紧凑显示） -->
+                    <div v-if="message.pronunciation_score !== null && message.pronunciation_score !== undefined" class="score-badge">
+                      {{ message.pronunciation_score }}
+                    </div>
+                  </div>
+                  
+                  <!-- 底部操作栏 -->
+                  <div class="card-actions">
+                    <div class="message-time">{{ formatTime(message.created_at) }}</div>
+                    <el-dropdown trigger="click" @command="(cmd) => handleMessageCommand(cmd, message)">
+                      <el-button text circle size="small" class="message-menu-btn">
+                        <el-icon><MoreFilled /></el-icon>
+                      </el-button>
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item :command="'toggleText'">
+                            <el-icon><Document /></el-icon>
+                            {{ messageStates[message.id]?.showText ? '隐藏文本' : '显示文本' }}
+                          </el-dropdown-item>
+                          <el-dropdown-item :command="'translate'" :disabled="messageStates[message.id]?.translating">
+                            <el-icon><Connection /></el-icon>
+                            {{ messageStates[message.id]?.translation ? '隐藏翻译' : '显示翻译' }}
+                          </el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
+                  </div>
+                </div>
+                
+                <!-- 展开的内容 -->
+                <div v-if="messageStates[message.id]?.showText || messageStates[message.id]?.translation" class="expanded-content">
+                  <div v-if="messageStates[message.id]?.showText" class="transcription" v-html="formatMessage(message.content)"></div>
+                  <div v-if="messageStates[message.id]?.translation" class="translation">
+                    <div class="translation-label">翻译：</div>
+                    <div class="translation-content" v-html="formatMessage(messageStates[message.id].translation)"></div>
+                  </div>
+                </div>
+              </div>
+            </template>
             
-            <!-- 用户消息：显示发音评分 -->
-            <div v-if="message.role === 'user'" class="user-voice-content">
-              <PronunciationScore
-                v-if="message.pronunciation_score !== null && message.pronunciation_score !== undefined"
-                :score="message.pronunciation_score"
-                :feedback="message.pronunciation_feedback || []"
-              />
-              <div v-if="messageStates[message.id]?.showText" class="transcription" v-html="formatMessage(message.content)"></div>
-              <div v-if="messageStates[message.id]?.translation" class="translation">
-                <div class="translation-label">翻译：</div>
-                <div class="translation-content" v-html="formatMessage(messageStates[message.id].translation)"></div>
+            <!-- AI 消息：头像在左侧 -->
+            <template v-else>
+              <!-- AI 头像 -->
+              <div class="message-avatar ai-avatar">
+                <span>🤖</span>
               </div>
-            </div>
-            
-            <!-- AI 消息：显示播放按钮 -->
-            <div v-else class="ai-voice-content">
-              <AudioPlayer
-                :ref="el => { if (el) audioPlayerRefs[message.id] = el }"
-                :text="message.content"
-                :auto-play="false"
-                @play="handleAIPlay"
-                @pause="handleAIPause"
-                @end="handleAIEnd"
-              />
-              <div v-if="messageStates[message.id]?.showText" class="transcription" v-html="formatMessage(message.content)"></div>
-              <div v-if="messageStates[message.id]?.translation" class="translation">
-                <div class="translation-label">翻译：</div>
-                <div class="translation-content" v-html="formatMessage(messageStates[message.id].translation)"></div>
+              
+              <!-- 消息卡片 -->
+              <div class="message-card ai-card">
+                <!-- 隐藏的 AudioPlayer 用于音频控制 -->
+                <AudioPlayer
+                  :ref="el => { if (el) audioPlayerRefs[message.id] = el }"
+                  :text="message.content"
+                  :auto-play="false"
+                  @play="handleAIPlay"
+                  @pause="handleAIPause"
+                  @end="handleAIEnd"
+                  style="display: none;"
+                />
+                
+                <div class="card-content">
+                  <!-- 语音气泡 -->
+                  <div class="voice-bubble ai-bubble" @click="playAIAudio(message)">
+                    <el-icon class="play-icon" :class="{ 'playing': isPlayingMessage(message.id) }">
+                      <VideoPlay v-if="!isPlayingMessage(message.id)" />
+                      <VideoPause v-else />
+                    </el-icon>
+                    <div class="sound-wave-mini" :class="{ 'active': isPlayingMessage(message.id) }">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                    <span class="voice-duration">{{ getAudioDuration(message) }}"</span>
+                  </div>
+                  
+                  <!-- 底部操作栏 -->
+                  <div class="card-actions">
+                    <div class="message-time">{{ formatTime(message.created_at) }}</div>
+                    <el-dropdown trigger="click" @command="(cmd) => handleMessageCommand(cmd, message)">
+                      <el-button text circle size="small" class="message-menu-btn">
+                        <el-icon><MoreFilled /></el-icon>
+                      </el-button>
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item :command="'toggleText'">
+                            <el-icon><Document /></el-icon>
+                            {{ messageStates[message.id]?.showText ? '隐藏文本' : '显示文本' }}
+                          </el-dropdown-item>
+                          <el-dropdown-item :command="'translate'" :disabled="messageStates[message.id]?.translating">
+                            <el-icon><Connection /></el-icon>
+                            {{ messageStates[message.id]?.translation ? '隐藏翻译' : '显示翻译' }}
+                          </el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
+                  </div>
+                </div>
+                
+                <!-- 展开的内容 -->
+                <div v-if="messageStates[message.id]?.showText || messageStates[message.id]?.translation" class="expanded-content">
+                  <div v-if="messageStates[message.id]?.showText" class="transcription" v-html="formatMessage(message.content)"></div>
+                  <div v-if="messageStates[message.id]?.translation" class="translation">
+                    <div class="translation-label">翻译：</div>
+                    <div class="translation-content" v-html="formatMessage(messageStates[message.id].translation)"></div>
+                  </div>
+                </div>
               </div>
-            </div>
+            </template>
           </div>
         </div>
         
@@ -177,7 +252,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted, watch, reactive } from
 import { useChatStore } from '@/stores/chat'
 import { isMobile } from '@/utils/device'
 import { ElMessage } from 'element-plus'
-import { Position, MoreFilled, Document, Connection } from '@element-plus/icons-vue'
+import { Position, MoreFilled, Document, Connection, VideoPlay, VideoPause } from '@element-plus/icons-vue'
 import AudioRecorder from '@/components/AudioRecorder.vue'
 import AudioPlayer from '@/components/AudioPlayer.vue'
 import PronunciationScore from '@/components/PronunciationScore.vue'
@@ -197,6 +272,8 @@ const audioPlayerRefs = ref({}) // 存储所有 AudioPlayer 组件的引用
 const isAISpeaking = ref(false) // AI 是否正在说话
 const showTranscription = ref(false) // 是否显示文本转录
 const showFullHistory = ref(false) // 是否显示完整历史
+const currentPlayingId = ref(null) // 当前正在播放的消息ID
+const audioCache = new Map() // 音频缓存
 
 // 每条消息的状态（显示文本、翻译等）
 const messageStates = reactive({})
@@ -447,6 +524,106 @@ async function translateMessage(message) {
     ElMessage.error('翻译失败，请重试')
   } finally {
     messageStates[message.id].translating = false
+  }
+}
+
+// 判断消息是否正在播放
+function isPlayingMessage(messageId) {
+  return currentPlayingId.value === messageId
+}
+
+// 获取音频时长（估算：按字数计算，平均每个字0.3秒）
+function getAudioDuration(message) {
+  if (!message.content) return 0
+  // 简单估算：英文按单词数，中文按字数
+  const words = message.content.split(/\s+/).length
+  const duration = Math.max(1, Math.ceil(words * 0.5)) // 每个单词约0.5秒
+  return Math.min(60, duration) // 最多显示60秒
+}
+
+// 播放用户音频
+async function playUserAudio(message) {
+  // 用户消息没有实际音频，这里可以播放TTS
+  if (currentPlayingId.value === message.id) {
+    // 如果正在播放，则停止
+    stopAudio()
+  } else {
+    await playMessageAudio(message)
+  }
+}
+
+// 播放AI音频
+async function playAIAudio(message) {
+  if (currentPlayingId.value === message.id) {
+    // 如果正在播放，则停止
+    stopAudio()
+  } else {
+    await playMessageAudio(message)
+  }
+}
+
+// 播放消息音频
+async function playMessageAudio(message) {
+  try {
+    currentPlayingId.value = message.id
+    
+    // 使用 AudioPlayer 组件的引用播放
+    const audioPlayer = audioPlayerRefs.value[message.id]
+    if (audioPlayer && typeof audioPlayer.play === 'function') {
+      await audioPlayer.play()
+    } else {
+      // 如果没有 AudioPlayer 引用，直接调用 TTS API
+      const response = await axios.post('/api/tts/synthesize', {
+        text: message.content,
+        language: 'en-US'
+      }, {
+        responseType: 'blob'
+      })
+      
+      const audioBlob = response.data
+      const audioUrl = URL.createObjectURL(audioBlob)
+      
+      // 创建音频元素播放
+      const audio = new Audio(audioUrl)
+      audioCache.set(message.id, audio)
+      
+      audio.onended = () => {
+        currentPlayingId.value = null
+        URL.revokeObjectURL(audioUrl)
+      }
+      
+      audio.onerror = () => {
+        currentPlayingId.value = null
+        URL.revokeObjectURL(audioUrl)
+        ElMessage.error('音频播放失败')
+      }
+      
+      await audio.play()
+    }
+  } catch (error) {
+    console.error('播放音频失败:', error)
+    currentPlayingId.value = null
+    if (error.name !== 'NotAllowedError') {
+      ElMessage.error('音频播放失败')
+    }
+  }
+}
+
+// 停止音频播放
+function stopAudio() {
+  if (currentPlayingId.value) {
+    const audio = audioCache.get(currentPlayingId.value)
+    if (audio) {
+      audio.pause()
+      audio.currentTime = 0
+    }
+    
+    const audioPlayer = audioPlayerRefs.value[currentPlayingId.value]
+    if (audioPlayer && typeof audioPlayer.pause === 'function') {
+      audioPlayer.pause()
+    }
+    
+    currentPlayingId.value = null
   }
 }
 
@@ -789,77 +966,224 @@ onUnmounted(() => {
   }
 }
 
-// 最近的消息
+// 最近的消息 - 语音气泡样式
 .recent-messages {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
-.voice-message {
-  background: white;
-  border-radius: 16px;
-  padding: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+.voice-message-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   animation: slideUp 0.3s ease-out;
   
   &.user {
-    border-left: 4px solid var(--primary-color);
+    flex-direction: row-reverse;
   }
   
   &.assistant {
-    border-left: 4px solid #667eea;
+    flex-direction: row;
+  }
+}
+
+.message-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+  
+  &.user-avatar {
+    background: linear-gradient(135deg, var(--primary-color), #ff8fab);
   }
   
-  .voice-message-header {
+  &.ai-avatar {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+  }
+  
+  @media (max-width: 768px) {
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+  }
+}
+
+// 消息卡片容器
+.message-card {
+  flex: 1;
+  max-width: 70%;
+  background: white;
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 0.2s ease;
+  
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  }
+  
+  @media (max-width: 768px) {
+    max-width: 75%;
+    padding: 10px;
+  }
+  
+  &.user-card {
+    background: linear-gradient(135deg, rgba(255, 107, 157, 0.05), rgba(255, 139, 171, 0.05));
+    border: 1px solid rgba(255, 107, 157, 0.1);
+  }
+  
+  &.ai-card {
+    background: white;
+    border: 1px solid var(--border-color);
+  }
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.voice-bubble {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 18px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 120px;
+  
+  &:hover {
+    transform: translateY(-1px);
+  }
+  
+  &:active {
+    transform: scale(0.98);
+  }
+  
+  &.user-bubble {
+    background: linear-gradient(135deg, var(--primary-color), #ff8fab);
+    color: white;
+    box-shadow: 0 2px 6px rgba(255, 107, 157, 0.3);
+  }
+  
+  &.ai-bubble {
+    background: #f5f7fa;
+    color: var(--text-color);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  }
+  
+  .play-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+    
+    &.playing {
+      animation: pulse 1.5s infinite;
+    }
+  }
+  
+  .sound-wave-mini {
     display: flex;
-    justify-content: space-between;
+    gap: 2px;
     align-items: center;
-    margin-bottom: 12px;
+    height: 20px;
     
-    .speaker-label {
-      font-weight: 600;
-      color: var(--text-color);
-      font-size: 0.95rem;
+    span {
+      width: 2px;
+      height: 8px;
+      background: currentColor;
+      border-radius: 1px;
+      opacity: 0.3;
+      transition: all 0.2s ease;
     }
     
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    &.active span {
+      opacity: 1;
+      animation: soundWaveMini 0.8s infinite ease-in-out;
       
-      .message-time {
-        font-size: 0.75rem;
-        color: var(--text-light);
-      }
-      
-      .message-menu-btn {
-        opacity: 0.6;
-        transition: opacity 0.2s;
-        
-        &:hover {
-          opacity: 1;
-        }
-      }
+      &:nth-child(1) { animation-delay: 0s; }
+      &:nth-child(2) { animation-delay: 0.1s; }
+      &:nth-child(3) { animation-delay: 0.2s; }
     }
   }
   
-  .user-voice-content,
-  .ai-voice-content {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+  .voice-duration {
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-left: auto;
   }
+  
+  .score-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #4caf50;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+}
+
+@keyframes soundWaveMini {
+  0%, 100% {
+    height: 8px;
+  }
+  50% {
+    height: 16px;
+  }
+}
+
+.message-time {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  opacity: 0.7;
+}
+
+.message-menu-btn {
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.expanded-content {
+  width: 100%;
+  animation: fadeIn 0.3s ease-out;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
   
   .transcription {
     font-size: 0.9rem;
-    color: var(--text-light);
+    color: var(--text-color);
     line-height: 1.6;
-    padding: 8px 12px;
-    background: var(--bg-light);
-    border-radius: 8px;
-    animation: fadeIn 0.3s ease-out;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 10px;
+    margin-bottom: 8px;
     
     // 支持 HTML 格式
     p {
@@ -898,11 +1222,10 @@ onUnmounted(() => {
   }
   
   .translation {
-    padding: 8px 12px;
+    padding: 10px 12px;
     background: #e3f2fd;
-    border-radius: 8px;
+    border-radius: 10px;
     border-left: 3px solid #2196f3;
-    animation: fadeIn 0.3s ease-out;
     
     .translation-label {
       font-size: 0.75rem;
