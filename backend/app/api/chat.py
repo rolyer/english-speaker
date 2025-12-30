@@ -286,7 +286,8 @@ async def get_conversations(
                     "id": msg.id,
                     "role": msg.role,
                     "content": msg.content,
-                    "created_at": msg.created_at.isoformat()
+                    "created_at": msg.created_at.isoformat(),
+                    "pronunciation_score": msg.pronunciation_score
                 }
                 for msg in messages
             ]
@@ -323,7 +324,8 @@ async def get_conversation(
                 "id": msg.id,
                 "role": msg.role,
                 "content": msg.content,
-                "created_at": msg.created_at.isoformat()
+                "created_at": msg.created_at.isoformat(),
+                "pronunciation_score": msg.pronunciation_score
             }
             for msg in messages
         ]

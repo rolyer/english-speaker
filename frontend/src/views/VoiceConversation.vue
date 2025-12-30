@@ -83,10 +83,17 @@
                     </div>
                     <span class="voice-duration">{{ getAudioDuration(message) }}"</span>
                     
-                    <!-- 发音评分（紧凑显示） -->
-                    <div v-if="message.pronunciation_score !== null && message.pronunciation_score !== undefined" class="score-badge">
-                      {{ message.pronunciation_score }}
-                    </div>
+                    <!-- 发音评分（紧凑显示，低置信度时变灰+tooltip） -->
+                    <el-tooltip
+                      v-if="message.pronunciation_score !== null && message.pronunciation_score !== undefined"
+                      :disabled="!message.stt_low_confidence"
+                      content="识别置信度低，本次评分可能不准确"
+                      placement="top"
+                    >
+                      <div class="score-badge" :class="{ 'low-confidence': message.stt_low_confidence }">
+                        {{ Math.round(message.pronunciation_score) }}
+                      </div>
+                    </el-tooltip>
                   </div>
                   
                   <!-- 底部操作栏 -->
@@ -344,25 +351,118 @@ function formatTime(timeString) {
   }
 }
 
-async function handleVoiceResult(text) {
-  if (!text.trim()) return
+async function handleVoiceResult(payload) {
+  // payload: { audio: Blob, mime: string, language: string }
+  if (!payload || !payload.audio) {
+    ElMessage.error('录音数据无效')
+    return
+  }
+  
+  const token = localStorage.getItem('token')
+  if (!token) {
+    ElMessage.error('未登录，请先登录')
+    return
+  }
   
   // 用户发送消息后，启用自动播放
   enableAutoPlay.value = true
+  chatStore.loading = true
   
   try {
-    // 发送语音识别的文本
-    await chatStore.sendMessageStream(
-      text,
-      chatStore.currentConversationId,
-      () => {
-        scrollToBottom()
+    // 准备FormData
+    const formData = new FormData()
+    formData.append('audio', payload.audio, 'audio.webm')
+    formData.append('language', payload.language || 'en')
+    if (chatStore.currentConversationId) {
+      formData.append('conversation_id', String(chatStore.currentConversationId))
+    }
+    formData.append('scenario', chatStore.selectedScenario)
+    
+    // 调用语音对话流式接口
+    const response = await fetch('/api/voice/chat/stream', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    })
+    
+    if (!response.ok) {
+      throw new Error(`请求失败: ${response.status}`)
+    }
+    
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let fullResponse = ''
+    let aiMessageIndex = -1
+    
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      
+      buffer += decoder.decode(value, { stream: true })
+      
+      // SSE 用 \n\n 分隔事件
+      const events = buffer.split('\n\n')
+      buffer = events.pop() || ''
+      
+      for (const event of events) {
+        const line = event.split('\n').find(l => l.startsWith('data: '))
+        if (!line) continue
+        
+        try {
+          const data = JSON.parse(line.slice(6))
+          
+          if (data.type === 'meta') {
+            // 收到用户消息元数据，插入用户消息
+            chatStore.currentConversationId = data.conversation_id
+            chatStore.messages.push(data.user_message)
+            
+            // 插入空的AI消息用于流式更新
+            aiMessageIndex = chatStore.messages.length
+            chatStore.messages.push({
+              id: Date.now(),
+              role: 'assistant',
+              content: '',
+              created_at: new Date().toISOString()
+            })
+            
+            await nextTick()
+            scrollToBottom()
+            
+          } else if (data.type === 'chunk') {
+            // 更新AI消息内容
+            if (aiMessageIndex >= 0) {
+              fullResponse += data.chunk
+              chatStore.messages[aiMessageIndex].content = fullResponse
+              scrollToBottom()
+            }
+            
+          } else if (data.type === 'done') {
+            // 完成
+            if (aiMessageIndex >= 0 && data.assistant_message_id) {
+              chatStore.messages[aiMessageIndex].id = data.assistant_message_id
+            }
+            chatStore.currentConversationId = data.conversation_id
+            
+          } else if (data.type === 'error') {
+            throw new Error(data.error || '语音对话失败')
+          }
+        } catch (e) {
+          console.error('解析SSE数据失败:', e)
+        }
       }
-    )
+    }
+    
     await nextTick()
     scrollToBottom()
+    
   } catch (error) {
-    ElMessage.error('发送消息失败，请重试')
+    console.error('语音对话失败:', error)
+    ElMessage.error('语音对话失败: ' + (error.message || '请重试'))
+  } finally {
+    chatStore.loading = false
   }
 }
 
@@ -1155,6 +1255,12 @@ onUnmounted(() => {
     padding: 2px 6px;
     border-radius: 10px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: background 0.3s ease;
+    
+    &.low-confidence {
+      background: #9e9e9e;
+      opacity: 0.85;
+    }
   }
 }
 

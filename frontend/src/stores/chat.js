@@ -211,7 +211,8 @@ export const useChatStore = defineStore('chat', () => {
         id: msg.id,
         role: msg.role,
         content: msg.content,
-        created_at: msg.created_at
+        created_at: msg.created_at,
+        pronunciation_score: msg.pronunciation_score
       }))
       
       return response

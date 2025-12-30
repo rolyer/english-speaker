@@ -92,44 +92,32 @@ async function startRecording() {
     }
     
     mediaRecorder.onstop = async () => {
-      statusMessage.value = '正在识别语音...'
-      statusType.value = 'info'
-      
       try {
         // 创建音频 Blob
         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' })
         
-        // 发送到后端进行识别
-        const formData = new FormData()
-        formData.append('file', audioBlob, 'audio.webm')
-        formData.append('language', props.language.startsWith('zh') ? 'zh' : 'en')
-        
-        const token = localStorage.getItem('token')
-        const response = await axios.post('/api/stt/transcribe', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-            'Authorization': `Bearer ${token}`
-          }
+        // 直接emit audioBlob，由上层组件处理STT和对话
+        emit('result', { 
+          audio: audioBlob, 
+          mime: 'audio/webm',
+          language: props.language.startsWith('zh') ? 'zh' : 'en'
         })
         
-        transcript.value = response.data.text
-        emit('result', response.data.text)
-        
         statusMessage.value = ''
-        ElMessage.success('识别成功')
+        ElMessage.success('录音完成')
         
       } catch (error) {
-        console.error('语音识别失败:', error)
-        statusMessage.value = '识别失败'
+        console.error('录音处理失败:', error)
+        statusMessage.value = '处理失败'
         statusType.value = 'error'
-        ElMessage.error('语音识别失败: ' + (error.response?.data?.detail || error.message))
+        ElMessage.error('录音处理失败: ' + error.message)
         emit('error', error)
-      }
-      
-      // 关闭流
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop())
-        stream = null
+      } finally {
+        // 关闭流
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop())
+          stream = null
+        }
       }
     }
     
