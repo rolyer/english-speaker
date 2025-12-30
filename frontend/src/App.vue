@@ -28,11 +28,6 @@ onMounted(() => {
 })
 </script>
 
-<style lang="scss">
-#app {
-  width: 100%;
-  min-height: 100vh;
-  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
-}
+<style>
+/* Global styles are in /src/styles/main.scss */
 </style>
-

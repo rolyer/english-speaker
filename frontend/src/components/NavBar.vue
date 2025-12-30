@@ -1,41 +1,51 @@
 <template>
-  <div class="navbar">
+  <nav class="navbar">
     <div class="navbar-container">
-      <div class="navbar-brand">
-        <router-link to="/" class="brand-link">
-          <span class="brand-icon">🎓</span>
-          <span class="brand-text">英语口语训练</span>
-        </router-link>
-      </div>
+      <!-- Brand Logo -->
+      <router-link to="/" class="navbar-brand">
+        <div class="brand-icon">🎙️</div>
+        <div class="brand-content">
+          <span class="brand-name">English Speaker</span>
+          <span class="brand-tagline">AI学习助手</span>
+        </div>
+      </router-link>
       
-      <nav v-if="userStore.isAuthenticated" class="navbar-nav">
+      <!-- Navigation Links -->
+      <div class="nav-links" v-if="userStore.isAuthenticated">
         <router-link
           v-for="item in navItems"
           :key="item.path"
           :to="item.path"
-          class="nav-item"
-          :class="{ active: $route.path === item.path }"
+          class="nav-link"
+          :class="{ 'active': isActive(item.path) }"
         >
-          <el-icon><component :is="icons[item.icon]" /></el-icon>
+          <el-icon class="nav-icon">
+            <component :is="icons[item.icon]" />
+          </el-icon>
           <span class="nav-label">{{ item.label }}</span>
         </router-link>
-      </nav>
+      </div>
       
+      <!-- User Actions -->
       <div class="navbar-actions">
         <template v-if="userStore.isAuthenticated">
-          <el-dropdown @command="handleCommand" trigger="click">
-            <div class="user-info">
-              <el-avatar :size="36" class="user-avatar">
-                <el-icon><UserFilled /></el-icon>
-              </el-avatar>
-              <span v-if="userStore.user" class="username">{{ userStore.user.username }}</span>
-              <span v-else class="username">加载中...</span>
-              <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
+          <el-dropdown @command="handleCommand" trigger="click" class="user-dropdown">
+            <div class="user-menu">
+              <div class="user-avatar">
+                <span>{{ getUserInitial }}</span>
+              </div>
+              <div class="user-info">
+                <span class="user-name">{{ userStore.user?.username || '用户' }}</span>
+                <span class="user-role">学习者</span>
+              </div>
+              <el-icon class="dropdown-arrow">
+                <ArrowDown />
+              </el-icon>
             </div>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="dashboard">
-                  <el-icon><DataAnalysis /></el-icon>
+                  <el-icon><DataLine /></el-icon>
                   <span>学习进度</span>
                 </el-dropdown-item>
                 <el-dropdown-item command="logout" divided>
@@ -47,84 +57,68 @@
           </el-dropdown>
         </template>
         <template v-else>
-          <el-button @click="$router.push('/login')" size="default">登录</el-button>
-          <el-button type="primary" @click="$router.push('/register')" size="default">注册</el-button>
+          <el-button 
+            class="auth-button login-button" 
+            @click="$router.push('/login')"
+          >
+            登录
+          </el-button>
+          <el-button 
+            type="primary" 
+            class="auth-button signup-button" 
+            @click="$router.push('/register')"
+          >
+            注册
+          </el-button>
         </template>
       </div>
     </div>
-  </div>
+  </nav>
 </template>
 
 <script setup>
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { ElMessage } from 'element-plus'
 import {
   HomeFilled,
-  ChatDotRound,
+  ChatLineRound,
   Microphone,
-  DataAnalysis,
-  UserFilled,
+  DataLine,
   ArrowDown,
   SwitchButton
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-// 监听用户信息变化
-watch(() => userStore.user, (newUser) => {
-  console.log('[NavBar] 用户信息变化:', newUser)
-}, { deep: true })
-
-// 组件挂载时的初始化
-onMounted(async () => {
-  console.log('[NavBar] onMounted - 检查用户状态:', {
-    isAuthenticated: userStore.isAuthenticated,
-    hasUser: !!userStore.user,
-    user: userStore.user
-  })
-  
-  // 确保用户信息已加载
-  if (userStore.isAuthenticated && !userStore.user) {
-    console.log('[NavBar] 正在获取用户信息...')
-    try {
-      await userStore.fetchUserInfo()
-      console.log('[NavBar] 用户信息获取成功:', userStore.user)
-    } catch (error) {
-      console.error('[NavBar] 获取用户信息失败:', error)
-    }
-  }
-})
-
-// 图标映射
 const icons = {
   HomeFilled,
-  ChatDotRound,
+  ChatLineRound,
   Microphone,
-  DataAnalysis,
-  UserFilled,
-  ArrowDown,
-  SwitchButton
+  DataLine
 }
 
-const navItems = computed(() => {
-  const items = [
-    { path: '/', label: '首页', icon: 'HomeFilled' }
-  ]
-  
-  if (userStore.isAuthenticated) {
-    items.push(
-      { path: '/conversation', label: '文本对话', icon: 'ChatDotRound' },
-      { path: '/voice', label: '语音对话', icon: 'Microphone' },
-      { path: '/dashboard', label: '学习进度', icon: 'DataAnalysis' }
-    )
-  }
-  
-  return items
+const navItems = computed(() => [
+  { path: '/', label: '首页', icon: 'HomeFilled' },
+  { path: '/conversation', label: '文本对话', icon: 'ChatLineRound' },
+  { path: '/voice', label: '语音对话', icon: 'Microphone' },
+  { path: '/dashboard', label: '学习进度', icon: 'DataLine' }
+])
+
+const getUserInitial = computed(() => {
+  const username = userStore.user?.username || 'U'
+  return username.charAt(0).toUpperCase()
 })
+
+function isActive(path) {
+  if (path === '/') {
+    return route.path === '/'
+  }
+  return route.path.startsWith(path)
+}
 
 function handleCommand(command) {
   if (command === 'dashboard') {
@@ -135,194 +129,314 @@ function handleCommand(command) {
     router.push('/')
   }
 }
+
+onMounted(async () => {
+  if (userStore.isAuthenticated && !userStore.user) {
+    try {
+      await userStore.fetchUserInfo()
+    } catch (error) {
+      console.error('获取用户信息失败:', error)
+    }
+  }
+})
 </script>
 
 <style lang="scss" scoped>
 .navbar {
-  background: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
   position: sticky;
   top: 0;
-  width: 100%;
+  z-index: 1000;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.95);
+  
+  @supports (backdrop-filter: blur(10px)) {
+    background: rgba(255, 255, 255, 0.8);
+  }
 }
 
 .navbar-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 var(--space-xl);
+  height: 72px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  height: 64px;
-  max-width: 1200px;
-  margin: 0 auto;
+  gap: var(--space-xl);
   
   @media (max-width: 768px) {
-    padding: 0 16px;
-    height: 56px;
+    padding: 0 var(--space-lg);
+    height: 64px;
+    gap: var(--space-md);
   }
 }
 
 .navbar-brand {
-  .brand-link {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    color: var(--primary-color);
-    font-size: 1.2rem;
-    font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  text-decoration: none;
+  transition: transform var(--transition-base);
+  
+  &:hover {
+    transform: translateY(-1px);
+  }
+}
+
+.brand-icon {
+  width: 48px;
+  height: 48px;
+  background: var(--bg-gradient-primary);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  box-shadow: var(--shadow-md);
+  
+  @media (max-width: 768px) {
+    width: 40px;
+    height: 40px;
+    font-size: 1.5rem;
+  }
+}
+
+.brand-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  
+  @media (max-width: 560px) {
+    display: none;
+  }
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.brand-tagline {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex: 1;
+  justify-content: center;
+  
+  @media (max-width: 860px) {
+    display: none;
+  }
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 0.9375rem;
+  transition: all var(--transition-base);
+  position: relative;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%) scaleX(0);
+    width: 80%;
+    height: 2px;
+    background: var(--bg-gradient-primary);
+    border-radius: 2px;
+    transition: transform var(--transition-base);
+  }
+  
+  &:hover {
+    color: var(--primary);
+    background: rgba(255, 107, 53, 0.05);
+  }
+  
+  &.active {
+    color: var(--primary);
+    font-weight: 600;
     
-    .brand-icon {
-      font-size: 1.5rem;
-    }
-    
-    .brand-text {
-      // 在小屏幕上隐藏品牌文字
-      @media (max-width: 900px) {
-        display: none;
-      }
-    }
-    
-    &:hover {
-      opacity: 0.8;
+    &::after {
+      transform: translateX(-50%) scaleX(1);
     }
   }
 }
 
-.navbar-nav {
-  display: flex;
-  gap: 8px;
-  flex: 1;
-  justify-content: center;
-  
-  .nav-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
-    border-radius: 8px;
-    text-decoration: none;
-    color: var(--text-color);
-    transition: all 0.3s;
-    white-space: nowrap; // 防止文字换行
-    
-    .el-icon {
-      flex-shrink: 0; // 图标不缩小
-      font-size: 18px;
-    }
-    
-    .nav-label {
-      // 在中等屏幕上隐藏导航文字，只显示图标
-      @media (max-width: 1024px) {
-        display: none;
-      }
-    }
-    
-    // 在小屏幕上减小内边距
-    @media (max-width: 1024px) {
-      padding: 8px 12px;
-    }
-    
-    &:hover {
-      background: var(--bg-light);
-      color: var(--primary-color);
-    }
-    
-    &.active {
-      background: var(--primary-color);
-      color: white;
-    }
-  }
+.nav-icon {
+  font-size: 1.25rem;
 }
 
 .navbar-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-md);
+}
+
+.auth-button {
+  height: 42px;
+  padding: 0 var(--space-xl);
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  transition: all var(--transition-base);
   
-  .user-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    padding: 6px 12px;
-    border-radius: 20px;
-    transition: all 0.3s ease;
-    border: 1px solid transparent;
-    
-    &:hover {
-      background: var(--bg-light);
-      border-color: var(--border-color);
-    }
-    
-    .user-avatar {
-      background: linear-gradient(135deg, var(--primary-color), #667eea);
-      color: white;
-      flex-shrink: 0;
-    }
-    
-    .username {
-      font-size: 0.95rem;
-      font-weight: 500;
-      color: var(--text-color);
-      max-width: 120px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      
-      // 在小屏幕上隐藏用户名
-      @media (max-width: 900px) {
-        display: none;
-      }
-    }
-    
-    .dropdown-icon {
-      font-size: 14px;
-      color: var(--text-light);
-      transition: transform 0.3s ease;
-      
-      // 在小屏幕上隐藏下拉图标
-      @media (max-width: 900px) {
-        display: none;
-      }
-    }
-    
-    &:hover .dropdown-icon {
-      transform: translateY(2px);
-    }
+  @media (max-width: 560px) {
+    padding: 0 var(--space-lg);
+    font-size: 0.875rem;
   }
 }
 
-// 下拉菜单样式优化
-:deep(.el-dropdown-menu) {
-  padding: 8px 0;
-  min-width: 160px;
+.login-button {
+  border: 2px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
   
-  .el-dropdown-menu__item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
-    font-size: 0.9rem;
-    
-    .el-icon {
-      font-size: 16px;
-    }
-    
-    &:hover {
-      background: var(--bg-light);
-      color: var(--primary-color);
-    }
+  &:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(255, 107, 53, 0.05);
+  }
+}
+
+.signup-button {
+  background: var(--bg-gradient-primary);
+  border: none;
+  box-shadow: var(--shadow-md);
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+.user-dropdown {
+  cursor: pointer;
+}
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-base);
+  border: 2px solid transparent;
+  
+  &:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
   }
   
-  .el-dropdown-menu__item--divided {
+  @media (max-width: 560px) {
+    padding: var(--space-sm);
+  }
+}
+
+.user-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-gradient-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-inverse);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.125rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  
+  @media (max-width: 560px) {
+    display: none;
+  }
+}
+
+.user-name {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.user-role {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.dropdown-arrow {
+  font-size: 1rem;
+  color: var(--text-tertiary);
+  transition: transform var(--transition-base);
+  
+  @media (max-width: 560px) {
+    display: none;
+  }
+}
+
+.user-menu:hover .dropdown-arrow {
+  transform: translateY(2px);
+}
+
+:deep(.el-dropdown-menu) {
+  margin-top: var(--space-md);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-sm);
+  min-width: 180px;
+}
+
+:deep(.el-dropdown-menu__item) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  font-size: 0.9375rem;
+  transition: all var(--transition-fast);
+  
+  .el-icon {
+    font-size: 1.125rem;
+  }
+  
+  &:hover {
+    background: var(--bg-tertiary);
+    color: var(--primary);
+  }
+  
+  &.is-divided {
+    margin-top: var(--space-xs);
+    padding-top: var(--space-md);
     border-top: 1px solid var(--border-color);
-    margin-top: 4px;
     
     &:hover {
-      color: var(--el-color-danger);
+      color: var(--error);
     }
   }
 }
 </style>
-

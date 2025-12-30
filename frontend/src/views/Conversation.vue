@@ -1,92 +1,117 @@
 <template>
   <div class="conversation-page">
+    <!-- Header -->
     <div class="conversation-header">
-      <h2>💬 英语对话练习</h2>
-      <el-select
-        v-model="chatStore.selectedScenario"
-        @change="handleScenarioChange"
-        size="small"
-        class="scenario-select"
-      >
-        <el-option
-          v-for="scenario in chatStore.scenarios"
-          :key="scenario.value"
-          :label="scenario.icon + ' ' + scenario.label"
-          :value="scenario.value"
-        />
-      </el-select>
+      <div class="header-content">
+        <h1 class="page-title">
+          <span class="title-icon">💬</span>
+          <span>文本对话</span>
+        </h1>
+        
+        <el-select
+          v-model="chatStore.selectedScenario"
+          @change="handleScenarioChange"
+          class="scenario-select"
+          size="large"
+        >
+          <el-option
+            v-for="scenario in chatStore.scenarios"
+            :key="scenario.value"
+            :label="scenario.label"
+            :value="scenario.value"
+          >
+            <span>{{ scenario.icon }} {{ scenario.label }}</span>
+          </el-option>
+        </el-select>
+      </div>
     </div>
     
-    <div class="conversation-container" ref="messagesContainer">
+    <!-- Messages Container -->
+    <div class="messages-container" ref="messagesContainer">
+      <!-- Empty State -->
       <div v-if="chatStore.messages.length === 0" class="empty-state">
-        <p>👋 开始和AI老师对话吧！</p>
-        <p class="hint">选择上方场景，然后输入你的问题</p>
+        <div class="empty-icon animate-float">
+          <div class="ai-orb"></div>
+          <div class="ai-pulse"></div>
+        </div>
+        <h2 class="empty-title">开始文本对话</h2>
+        <p class="empty-subtitle">在下方输入框输入你的问题，AI老师会帮助你练习英语</p>
       </div>
       
-      <div
-        v-for="message in chatStore.messages"
-        :key="message.id"
-        :class="['message', message.role]"
-      >
-        <div class="message-content">
+      <!-- Messages -->
+      <div v-else class="messages-list">
+        <div
+          v-for="message in chatStore.messages"
+          :key="message.id"
+          class="message-item"
+          :class="message.role"
+        >
           <div class="message-avatar">
             <span v-if="message.role === 'user'">👤</span>
             <span v-else>🤖</span>
           </div>
-          <div class="message-bubble">
-            <div class="message-text" v-html="formatMessage(message.content)"></div>
-            <div class="message-actions">
-              <AudioPlayer
-                v-if="message.role === 'assistant'"
-                :text="message.content"
-                :auto-play="false"
-              />
-              <div class="message-time">{{ formatTime(message.created_at) }}</div>
+          
+          <div class="message-content">
+            <div class="message-header">
+              <span class="message-role">
+                {{ message.role === 'user' ? '你' : 'AI老师' }}
+              </span>
+              <span class="message-time">{{ formatTime(message.created_at) }}</span>
+            </div>
+            
+            <div class="message-bubble">
+              <div class="message-text" v-html="formatMessage(message.content)"></div>
+              
+              <div v-if="message.role === 'assistant'" class="message-actions">
+                <AudioPlayer
+                  :text="message.content"
+                  :auto-play="false"
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      
-      <!-- 只在等待响应且没有消息时显示加载动画 -->
-      <div v-if="chatStore.loading && isWaitingForFirstResponse" class="message assistant">
-        <div class="message-content">
-          <div class="message-avatar">🤖</div>
-          <div class="message-bubble">
-            <div class="typing-indicator">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
+        
+        <!-- Typing Indicator -->
+        <div v-if="chatStore.loading" class="typing-indicator">
+          <div class="message-avatar">
+            <span>🤖</span>
+          </div>
+          <div class="typing-bubble">
+            <span></span>
+            <span></span>
+            <span></span>
           </div>
         </div>
       </div>
     </div>
     
-    <div class="conversation-input">
-      <div class="input-wrapper">
+    <!-- Input Area -->
+    <div class="input-area">
+      <div class="input-container">
         <el-input
           v-model="inputMessage"
           type="textarea"
-          :rows="mobile ? 3 : 2"
-          placeholder="输入你的问题，按回车发送..."
+          :rows="3"
+          placeholder="输入你的消息..."
           :disabled="chatStore.loading"
           @keydown.enter.exact="handleEnterKey"
-          ref="inputRef"
-          class="input-textarea"
+          class="message-input"
         />
+        
         <el-button
           type="primary"
           :loading="chatStore.loading"
-          @click="handleSend"
           :disabled="!inputMessage.trim()"
-          :icon="mobile ? 'Position' : ''"
-          circle
+          @click="handleSend"
           class="send-button"
         >
-          <el-icon v-if="!mobile"><Position /></el-icon>
+          <span v-if="!chatStore.loading">发送</span>
+          <span v-else>发送中...</span>
         </el-button>
       </div>
-      <div v-if="!mobile" class="input-hint">
+      
+      <div class="input-hint">
         按 Enter 发送，Shift + Enter 换行
       </div>
     </div>
@@ -94,38 +119,34 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { ref, nextTick, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
-import { useUserStore } from '@/stores/user'
-import { isMobile } from '@/utils/device'
 import { ElMessage } from 'element-plus'
-import { Position } from '@element-plus/icons-vue'
 import AudioPlayer from '@/components/AudioPlayer.vue'
 
-const router = useRouter()
-const route = useRoute()
 const chatStore = useChatStore()
-const userStore = useUserStore()
 const inputMessage = ref('')
-const inputRef = ref(null)
 const messagesContainer = ref(null)
-const mobile = computed(() => isMobile())
-
-// 判断是否在等待第一个响应（还没有收到任何内容）
-const isWaitingForFirstResponse = computed(() => {
-  if (!chatStore.loading) return false
-  
-  // 如果消息列表为空，或者最后一条消息是用户消息，说明正在等待 AI 响应
-  if (chatStore.messages.length === 0) return true
-  
-  const lastMessage = chatStore.messages[chatStore.messages.length - 1]
-  return lastMessage.role === 'user'
-})
 
 function formatMessage(content) {
-  // 简单的Markdown渲染（换行）
-  return content.replace(/\n/g, '<br>')
+  if (!content) return ''
+  
+  let formatted = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  
+  // Markdown formatting
+  formatted = formatted.replace(/`([^`]+?)`/g, '<code>$1</code>')
+  formatted = formatted.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
+  formatted = formatted.replace(/__([^_]+?)__/g, '<strong>$1</strong>')
+  formatted = formatted.replace(/\*([^*]+?)\*/g, '<em>$1</em>')
+  formatted = formatted.replace(/_([^_]+?)_/g, '<em>$1</em>')
+  formatted = formatted.replace(/~~([^~]+?)~~/g, '<del>$1</del>')
+  formatted = formatted.replace(/\n/g, '<br>')
+  
+  return formatted
 }
 
 function formatTime(timeString) {
@@ -134,26 +155,22 @@ function formatTime(timeString) {
   const now = new Date()
   const diff = now - date
   
-  if (diff < 60000) {
-    return '刚刚'
-  } else if (diff < 3600000) {
-    return `${Math.floor(diff / 60000)}分钟前`
-  } else if (diff < 86400000) {
-    return `${Math.floor(diff / 3600000)}小时前`
-  } else {
-    return date.toLocaleDateString('zh-CN')
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
+  return date.toLocaleDateString('zh-CN')
+}
+
+function handleEnterKey(event) {
+  if (event.shiftKey) {
+    return
   }
+  event.preventDefault()
+  handleSend()
 }
 
 async function handleSend() {
   if (!inputMessage.value.trim() || chatStore.loading) return
-  
-  // 检查是否已登录
-  if (!userStore.isAuthenticated) {
-    ElMessage.warning('请先登录')
-    router.push('/login')
-    return
-  }
   
   const message = inputMessage.value.trim()
   inputMessage.value = ''
@@ -169,7 +186,6 @@ async function handleSend() {
     await nextTick()
     scrollToBottom()
   } catch (error) {
-    // 显示更详细的错误信息
     const errorMessage = error.message || '发送消息失败，请重试'
     if (errorMessage.includes('登录') || errorMessage.includes('未授权')) {
       ElMessage.error(errorMessage)
@@ -178,16 +194,6 @@ async function handleSend() {
       console.error('发送消息错误:', error)
     }
   }
-  
-  // 移动端：输入框失焦后重新聚焦
-  if (mobile.value) {
-    await nextTick()
-    inputRef.value?.focus()
-  }
-}
-
-function handleScenarioChange() {
-  chatStore.clearMessages()
 }
 
 function scrollToBottom() {
@@ -198,48 +204,24 @@ function scrollToBottom() {
   })
 }
 
-// 处理回车键
-function handleEnterKey(event) {
-  // Shift + Enter 换行
-  if (event.shiftKey) {
-    return // 允许默认换行行为
-  }
-  
-  // 单独按 Enter 发送消息
-  event.preventDefault()
-  handleSend()
+function handleScenarioChange() {
+  chatStore.clearMessages()
+  ElMessage.success(`已切换到场景：${chatStore.selectedScenario}`)
 }
 
 onMounted(async () => {
-  // 检查URL参数，如果有conversation_id则加载历史会话
+  // 检查URL参数，如果有conversationId则加载对应的会话
+  const route = useRoute()
   const conversationId = route.query.id
+  
   if (conversationId) {
     try {
-      await chatStore.loadConversation(parseInt(conversationId))
-      ElMessage.success('已加载历史会话')
+      await chatStore.loadConversation(conversationId)
       await nextTick()
       scrollToBottom()
     } catch (error) {
-      console.error('加载历史会话失败:', error)
-      ElMessage.error('加载历史会话失败')
-      // 清空消息，开始新会话
-      chatStore.clearMessages()
-    }
-  } else if (!chatStore.currentConversationId) {
-    // 没有当前会话，尝试加载最新的对话
-    try {
-      const latestConversation = await chatStore.loadLatestConversation()
-      if (latestConversation) {
-        console.log('已自动加载最新对话')
-        await nextTick()
-        scrollToBottom()
-      } else {
-        // 没有历史对话，保持空白状态
-        console.log('没有历史对话记录')
-      }
-    } catch (error) {
-      console.error('加载最新对话失败:', error)
-      // 加载失败，保持空白状态
+      console.error('加载会话失败:', error)
+      ElMessage.error('加载会话失败')
     }
   }
   
@@ -249,166 +231,301 @@ onMounted(async () => {
 
 <style lang="scss" scoped>
 .conversation-page {
+  min-height: calc(100vh - 72px);
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 64px);
-  max-width: 1200px;
-  margin: 0 auto;
-  background: var(--bg-light);
+  background: var(--bg-primary);
   
   @media (max-width: 768px) {
-    height: calc(100vh - 56px); // 移动端顶部导航高度
+    min-height: calc(100vh - 64px);
+  }
+  
+  @media (max-width: 860px) {
+    // 为移动端底部导航预留空间已在Layout中处理
+    min-height: calc(100vh - 64px - 72px);
   }
 }
 
 .conversation-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  background: white;
+  background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
+  padding: var(--space-lg) var(--space-xl);
   
-  h2 {
-    margin: 0;
-    color: var(--primary-color);
-    font-size: 1.5rem;
+  @media (max-width: 768px) {
+    padding: var(--space-md) var(--space-lg);
+  }
+}
+
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xl);
+  min-height: 48px;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+  line-height: 1;
+  flex-shrink: 1;
+  min-width: 0;
+  
+  .title-icon {
+    font-size: 1.75rem;
+    flex-shrink: 0;
   }
   
-  .scenario-select {
-    width: 150px;
+  span:not(.title-icon) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  @media (max-width: 768px) {
+    font-size: 1.25rem;
+    gap: var(--space-xs);
     
-    @media (max-width: 768px) {
-      width: 120px;
+    .title-icon {
+      font-size: 1.5rem;
     }
   }
 }
 
-.conversation-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  scroll-behavior: smooth;
+.scenario-select {
+  width: 180px;
+  flex-shrink: 0;
+  
+  :deep(.el-input__wrapper) {
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-md);
+  }
   
   @media (max-width: 768px) {
-    padding: 12px;
+    width: 140px;
+  }
+  
+  @media (max-width: 480px) {
+    width: 120px;
+  }
+}
+
+.messages-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2xl) var(--space-xl);
+  
+  @media (max-width: 768px) {
+    padding: var(--space-xl) var(--space-lg);
   }
 }
 
 .empty-state {
+  max-width: 600px;
+  margin: 0 auto;
   text-align: center;
-  padding: 60px 20px;
-  color: var(--text-light);
-  
-  p {
-    margin: 10px 0;
-    font-size: 1.1rem;
+  padding: var(--space-3xl) 0;
+}
+
+.empty-icon {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto var(--space-2xl);
+}
+
+.ai-orb {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: var(--bg-gradient-primary);
+  box-shadow: var(--shadow-colored);
+}
+
+.ai-pulse {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: var(--primary);
+  opacity: 0.3;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.3;
   }
-  
-  .hint {
-    font-size: 0.9rem;
-    opacity: 0.7;
+  50% {
+    transform: scale(1.2);
+    opacity: 0;
   }
 }
 
-.message {
-  margin-bottom: 20px;
-  animation: fadeIn 0.3s ease-out;
-  
-  &.user {
-    .message-content {
-      flex-direction: row-reverse;
-    }
-    
-    .message-bubble {
-      background: var(--primary-color);
-      color: white;
-      border-radius: 18px 18px 4px 18px;
-    }
-  }
+.empty-title {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-md);
+}
+
+.empty-subtitle {
+  font-size: 1.125rem;
+  color: var(--text-secondary);
+}
+
+.messages-list {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.message-item {
+  display: flex;
+  gap: var(--space-lg);
+  animation: slideUp var(--transition-base) ease-out;
   
   &.assistant {
-    .message-bubble {
-      background: white;
-      color: var(--text-color);
-      border-radius: 18px 18px 18px 4px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-  }
-}
-
-.message-content {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  max-width: 70%;
-  margin-left: auto;
-  
-  @media (max-width: 768px) {
-    max-width: 85%;
+    flex-direction: row;
   }
   
-  .user & {
-    margin-left: 0;
-    margin-right: auto;
+  &.user {
+    flex-direction: row-reverse;
   }
 }
 
 .message-avatar {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 1.5rem;
   flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
   
-  @media (max-width: 768px) {
-    width: 36px;
-    height: 36px;
-    font-size: 20px;
+  .user & {
+    background: var(--bg-gradient-primary);
+  }
+  
+  .assistant & {
+    background: var(--bg-gradient-secondary);
   }
 }
 
-.message-bubble {
-  padding: 12px 16px;
-  word-wrap: break-word;
+.message-content {
   flex: 1;
+  max-width: 70%;
   
   @media (max-width: 768px) {
-    padding: 10px 14px;
-    font-size: 14px;
+    max-width: 100%;
+  }
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.message-role {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+}
+
+.message-time {
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+}
+
+.message-bubble {
+  background: var(--bg-secondary);
+  padding: var(--space-lg) var(--space-xl);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  
+  .user & {
+    background: linear-gradient(135deg, rgba(255, 107, 53, 0.1), rgba(255, 133, 87, 0.1));
+    border: 2px solid rgba(255, 107, 53, 0.2);
   }
 }
 
 .message-text {
+  color: var(--text-primary);
   line-height: 1.6;
-  margin-bottom: 4px;
+  word-wrap: break-word;
+  
+  :deep(strong) {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  
+  :deep(em) {
+    font-style: italic;
+  }
+  
+  :deep(del) {
+    text-decoration: line-through;
+    opacity: 0.7;
+  }
+  
+  :deep(code) {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+  }
 }
 
 .message-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 8px;
-}
-
-.message-time {
-  font-size: 0.75rem;
-  opacity: 0.6;
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-color-light);
 }
 
 .typing-indicator {
   display: flex;
-  gap: 4px;
-  padding: 8px 0;
+  gap: var(--space-lg);
+  animation: slideUp var(--transition-base) ease-out;
+}
+
+.typing-bubble {
+  background: var(--bg-secondary);
+  padding: var(--space-lg) var(--space-xl);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
   
   span {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--text-light);
+    background: var(--text-tertiary);
     animation: typing 1.4s infinite;
+    
+    &:nth-child(1) {
+      animation-delay: 0s;
+    }
     
     &:nth-child(2) {
       animation-delay: 0.2s;
@@ -426,63 +543,92 @@ onMounted(async () => {
     opacity: 0.5;
   }
   30% {
-    transform: translateY(-10px);
+    transform: translateY(-8px);
     opacity: 1;
   }
 }
 
-.conversation-input {
-  padding: 16px 20px;
-  background: white;
+.input-area {
+  background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
+  padding: var(--space-xl);
   
   @media (max-width: 768px) {
-    padding: 12px;
+    padding: var(--space-lg);
   }
 }
 
-.input-wrapper {
-  position: relative;
+.input-container {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-end;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
-.input-textarea {
-  width: 100%;
+.message-input {
+  flex: 1;
   
   :deep(.el-textarea__inner) {
-    resize: none;
-    font-size: 14px;
+    border-radius: var(--radius-lg);
+    border: 2px solid var(--border-color);
+    font-size: 1rem;
     line-height: 1.6;
-    padding-right: 52px; // 所有设备都为发送按钮留出空间
+    resize: none;
+    font-family: var(--font-body);
+    transition: all var(--transition-base);
     
-    @media (max-width: 768px) {
-      font-size: 16px; // 移动端稍大一些，防止自动缩放
+    &:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+    }
+    
+    &::placeholder {
+      color: var(--text-tertiary);
     }
   }
 }
 
 .send-button {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  width: 40px;
-  height: 40px;
-  font-size: 20px;
-  transition: transform 0.2s ease;
+  height: 56px;
+  padding: 0 var(--space-3xl);
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: var(--radius-lg);
+  background: var(--bg-gradient-primary);
+  border: none;
+  box-shadow: var(--shadow-colored);
+  transition: all var(--transition-base);
   
-  &:hover {
-    transform: scale(1.05);
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-xl);
   }
   
-  &:active {
-    transform: scale(0.95);
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  @media (max-width: 768px) {
+    width: 100%;
   }
 }
 
 .input-hint {
-  margin-top: 8px;
-  font-size: 0.75rem;
-  color: var(--text-light);
-  text-align: right;
-  opacity: 0.7;
+  max-width: 900px;
+  margin: var(--space-md) auto 0;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
 }
 </style>
