@@ -3,7 +3,7 @@ name = "speaker-backend"
 version = "0.1.0"
 description = "小学生英语口语训练WEB应用后端"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
@@ -24,6 +24,11 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "email-validator>=2.0.0",
     "edge-tts>=6.1.0",
+    "openai-whisper>=20231117",
+    "torch>=2.0,<2.3",  # torch 2.3+ 在 macOS x86_64 上不可用，使用 2.2.x
+    "numba>=0.63",  # numba 0.63+ 支持 Python 3.12
+    "llvmlite>=0.46",  # llvmlite 0.46+ 支持 Python 3.12
+    "numpy<2",  # NumPy 2.x 与 torch 2.2.2 不兼容
 ]
 
 [project.optional-dependencies]

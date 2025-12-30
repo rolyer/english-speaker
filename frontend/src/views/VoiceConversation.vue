@@ -205,9 +205,8 @@
     
     <div class="voice-controls">
       <div v-if="voiceMode" class="voice-input-section">
-        <AudioRecorder
+        <MediaAudioRecorder
           :language="'en-US'"
-          :continuous="false"
           @result="handleVoiceResult"
           @error="handleVoiceError"
           @start="handleVoiceStart"
@@ -253,7 +252,7 @@ import { useChatStore } from '@/stores/chat'
 import { isMobile } from '@/utils/device'
 import { ElMessage } from 'element-plus'
 import { Position, MoreFilled, Document, Connection, VideoPlay, VideoPause } from '@element-plus/icons-vue'
-import AudioRecorder from '@/components/AudioRecorder.vue'
+import MediaAudioRecorder from '@/components/MediaAudioRecorder.vue'
 import AudioPlayer from '@/components/AudioPlayer.vue'
 import PronunciationScore from '@/components/PronunciationScore.vue'
 import api from '@/services/api'
