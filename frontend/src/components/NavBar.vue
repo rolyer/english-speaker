@@ -35,7 +35,7 @@
                 <span>{{ getUserInitial }}</span>
               </div>
               <div class="user-info">
-                <span class="user-name">{{ userStore.user?.username || '用户' }}</span>
+                <span class="user-name">{{ displayName }}</span>
                 <span class="user-role">学习者</span>
               </div>
               <el-icon class="dropdown-arrow">
@@ -44,6 +44,10 @@
             </div>
             <template #dropdown>
               <el-dropdown-menu>
+                <el-dropdown-item command="profile">
+                  <el-icon><User /></el-icon>
+                  <span>个人资料</span>
+                </el-dropdown-item>
                 <el-dropdown-item command="dashboard">
                   <el-icon><DataLine /></el-icon>
                   <span>学习进度</span>
@@ -87,7 +91,8 @@ import {
   Microphone,
   DataLine,
   ArrowDown,
-  SwitchButton
+  SwitchButton,
+  User
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -108,9 +113,15 @@ const navItems = computed(() => [
   { path: '/dashboard', label: '学习进度', icon: 'DataLine' }
 ])
 
+// 显示名称：优先使用昵称，否则使用用户名
+const displayName = computed(() => {
+  return userStore.user?.nickname || userStore.user?.username || '用户'
+})
+
+// 获取头像首字母：优先使用昵称的首字母，否则使用用户名的首字母
 const getUserInitial = computed(() => {
-  const username = userStore.user?.username || 'U'
-  return username.charAt(0).toUpperCase()
+  const name = userStore.user?.nickname || userStore.user?.username || 'U'
+  return name.charAt(0).toUpperCase()
 })
 
 function isActive(path) {
@@ -121,7 +132,9 @@ function isActive(path) {
 }
 
 function handleCommand(command) {
-  if (command === 'dashboard') {
+  if (command === 'profile') {
+    router.push('/profile')
+  } else if (command === 'dashboard') {
     router.push('/dashboard')
   } else if (command === 'logout') {
     userStore.logout()

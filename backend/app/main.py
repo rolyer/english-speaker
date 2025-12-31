@@ -21,7 +21,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api import auth, chat, pronunciation, progress, tts, stt, voice
+from app.api import auth, chat, pronunciation, progress, tts, stt, voice, profile
 
 # 创建数据库表
 Base.metadata.create_all(bind=engine)
@@ -49,6 +49,7 @@ app.include_router(progress.router)
 app.include_router(tts.router)
 app.include_router(stt.router)
 app.include_router(voice.router)
+app.include_router(profile.router)
 
 
 @app.get("/")

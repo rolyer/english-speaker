@@ -37,6 +37,12 @@ const routes = [
     name: 'VoiceConversation',
     component: () => import('@/views/VoiceConversation.vue'),
     meta: { requiresAuth: true, title: '语音对话' }
+  },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('@/views/Profile.vue'),
+    meta: { requiresAuth: true, title: '个人资料' }
   }
 ]
 
