@@ -27,6 +27,9 @@ class UserResponse(BaseModel):
     id: int
     username: str
     email: str
+    nickname: Optional[str] = None
+    gender: Optional[str] = None
+    age: Optional[int] = None
     is_active: bool
     
     class Config:
