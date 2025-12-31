@@ -458,6 +458,16 @@ async function handleVoiceResult(payload) {
           } else if (data.type === 'done') {
             if (aiMessageIndex >= 0 && data.assistant_message_id) {
               chatStore.messages[aiMessageIndex].id = data.assistant_message_id
+              
+              // 自动播放 AI 回复
+              await nextTick()
+              const aiMessage = chatStore.messages[aiMessageIndex]
+              if (aiMessage && aiMessage.role === 'assistant') {
+                // 等待 AudioPlayer 组件渲染完成
+                setTimeout(() => {
+                  playMessage(aiMessage)
+                }, 300)
+              }
             }
             chatStore.currentConversationId = data.conversation_id
             
