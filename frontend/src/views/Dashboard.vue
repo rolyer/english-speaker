@@ -80,26 +80,39 @@
           </button>
         </div>
         
-        <div v-else class="activity-list">
-          <div 
-            class="activity-item" 
-            v-for="conv in recentConversations" 
-            :key="conv.id"
-            @click="goToConversation(conv.id)"
-          >
-            <div class="activity-icon">
-              {{ getScenarioIcon(conv.scenario) }}
-            </div>
-            <div class="activity-content">
-              <div class="activity-header">
-                <span class="activity-title">{{ getScenarioLabel(conv.scenario) }}</span>
-                <span class="activity-meta">{{ conv.message_count }} 条消息</span>
+        <div v-else class="activity-list-container" ref="activityListContainer" @scroll="handleScroll">
+          <div class="activity-list">
+            <div 
+              class="activity-item" 
+              v-for="conv in recentConversations" 
+              :key="conv.id"
+              @click="goToConversation(conv.id)"
+            >
+              <div class="activity-icon">
+                {{ getScenarioIcon(conv.scenario) }}
               </div>
-              <div class="activity-time">{{ formatDate(conv.started_at) }}</div>
+              <div class="activity-content">
+                <div class="activity-header">
+                  <span class="activity-title">{{ getScenarioLabel(conv.scenario) }}</span>
+                  <span class="activity-meta">{{ conv.message_count }} 条消息</span>
+                </div>
+                <div class="activity-time">{{ formatDate(conv.started_at) }}</div>
+              </div>
+              <div class="activity-arrow">
+                <el-icon><ArrowRight /></el-icon>
+              </div>
             </div>
-            <div class="activity-arrow">
-              <el-icon><ArrowRight /></el-icon>
-            </div>
+          </div>
+          
+          <!-- 加载更多指示器 -->
+          <div v-if="loadingMore" class="loading-more">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <span>加载中...</span>
+          </div>
+          
+          <!-- 没有更多数据提示 -->
+          <div v-if="!hasMore && recentConversations.length > 0" class="no-more">
+            <span>没有更多数据了</span>
           </div>
         </div>
       </div>
@@ -129,14 +142,20 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/services/api'
 import { ElMessage } from 'element-plus'
-import { CaretTop, CaretBottom, ArrowRight } from '@element-plus/icons-vue'
+import { CaretTop, CaretBottom, ArrowRight, Loading } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const loading = ref(true)
+const loadingMore = ref(false)
+const hasMore = ref(true)
+const currentPage = ref(0)
+const pageSize = ref(10)
+const activityListContainer = ref(null)
+
 const progress = ref({
   total_conversations: 0,
   total_time: 0,
@@ -267,19 +286,53 @@ const achievements = computed(() => [
   }
 ])
 
-async function fetchProgress() {
+async function fetchProgress(reset = true) {
   try {
-    loading.value = true
+    if (reset) {
+      loading.value = true
+      currentPage.value = 0
+      recentConversations.value = []
+    } else {
+      loadingMore.value = true
+    }
+    
+    const offset = currentPage.value * pageSize.value
     const response = await api.get('/progress/')
     progress.value = response
     
-    const statsResponse = await api.get('/progress/stats?days=7')
-    recentConversations.value = statsResponse.recent_conversations || []
+    const statsResponse = await api.get(`/progress/stats?days=7&offset=${offset}&limit=${pageSize.value}`)
+    
+    if (reset) {
+      recentConversations.value = statsResponse.recent_conversations || []
+    } else {
+      recentConversations.value.push(...(statsResponse.recent_conversations || []))
+    }
+    
+    hasMore.value = statsResponse.has_more || false
+    currentPage.value++
   } catch (error) {
     console.error('获取学习进度失败:', error)
     ElMessage.error('获取学习进度失败')
   } finally {
     loading.value = false
+    loadingMore.value = false
+  }
+}
+
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  await fetchProgress(false)
+}
+
+function handleScroll(event) {
+  const container = event.target
+  const scrollTop = container.scrollTop
+  const scrollHeight = container.scrollHeight
+  const clientHeight = container.clientHeight
+  
+  // 当滚动到距离底部50px时触发加载
+  if (scrollHeight - scrollTop - clientHeight < 50) {
+    loadMore()
   }
 }
 
@@ -608,6 +661,35 @@ onMounted(() => {
   }
 }
 
+.activity-list-container {
+  max-height: 600px;
+  overflow-y: auto;
+  padding-right: var(--space-sm);
+  
+  /* 自定义滚动条样式 */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-full);
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: var(--neutral-300);
+    border-radius: var(--radius-full);
+    
+    &:hover {
+      background: var(--neutral-400);
+    }
+  }
+  
+  @media (max-width: 768px) {
+    max-height: 500px;
+  }
+}
+
 .activity-list {
   display: flex;
   flex-direction: column;
@@ -741,6 +823,29 @@ onMounted(() => {
   top: var(--space-sm);
   right: var(--space-sm);
   font-size: 1rem;
+}
+
+.loading-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-xl);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  
+  .el-icon {
+    font-size: 1.25rem;
+  }
+}
+
+.no-more {
+  text-align: center;
+  padding: var(--space-xl);
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  border-top: 1px solid var(--border-color);
+  margin-top: var(--space-md);
 }
 </style>
 

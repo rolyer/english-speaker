@@ -40,6 +40,8 @@ class ProgressStatsResponse(BaseModel):
     progress: ProgressResponse
     daily_stats: List[ConversationStats]
     recent_conversations: List[dict]
+    total_conversations: Optional[int] = 0
+    has_more: Optional[bool] = False
 
 
 @router.get("/", response_model=ProgressResponse)
@@ -137,10 +139,12 @@ async def get_progress(
 @router.get("/stats", response_model=ProgressStatsResponse)
 async def get_progress_stats(
     days: int = 7,
+    offset: int = 0,
+    limit: int = 10,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """获取详细进度统计"""
+    """获取详细进度统计（支持分页）"""
     # 获取基础进度
     progress_response = await get_progress(current_user, db)
     
@@ -168,10 +172,15 @@ async def get_progress_stats(
             total_time=total_time
         ))
     
-    # 获取最近的对话
+    # 获取最近的对话（支持分页）
     recent_conversations = db.query(Conversation).filter(
         Conversation.user_id == current_user.id
-    ).order_by(Conversation.started_at.desc()).limit(10).all()
+    ).order_by(Conversation.started_at.desc()).offset(offset).limit(limit).all()
+    
+    # 获取总数
+    total_conversations = db.query(func.count(Conversation.id)).filter(
+        Conversation.user_id == current_user.id
+    ).scalar() or 0
     
     recent_list = []
     for conv in recent_conversations:
@@ -189,7 +198,9 @@ async def get_progress_stats(
     return ProgressStatsResponse(
         progress=progress_response,
         daily_stats=daily_stats,
-        recent_conversations=recent_list
+        recent_conversations=recent_list,
+        total_conversations=total_conversations,
+        has_more=offset + limit < total_conversations
     )
 
 
