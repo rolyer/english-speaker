@@ -1,0 +1,21 @@
+{
+  "name": "english-speaker",
+  "version": "1.0.1",
+  "scripts": {
+    "prepare": "husky install",
+    "release": "standard-version",
+    "commit": "cz"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.2.0",
+    "@commitlint/config-conventional": "^20.2.0",
+    "cz-conventional-changelog": "^3.3.0",
+    "husky": "^9.1.7",
+    "standard-version": "^9.5.0"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  }
+}
