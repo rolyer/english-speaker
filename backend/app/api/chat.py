@@ -20,6 +20,7 @@ if sys.stderr.encoding != 'utf-8':
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import Optional, List
 from pydantic import BaseModel
 from app.core.database import get_db
@@ -294,6 +295,54 @@ async def get_conversations(
         ))
     
     return result
+
+
+@router.get("/conversations/{conversation_id}/messages")
+async def get_conversation_messages(
+    conversation_id: int,
+    offset: int = 0,
+    limit: int = 10,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """获取对话消息（支持分页，从最新消息开始倒序）"""
+    # 验证对话是否存在且属于当前用户
+    conversation = db.query(Conversation).filter(
+        Conversation.id == conversation_id,
+        Conversation.user_id == current_user.id
+    ).first()
+    
+    if not conversation:
+        raise HTTPException(status_code=404, detail="对话会话不存在")
+    
+    # 获取总消息数
+    total_messages = db.query(func.count(Message.id)).filter(
+        Message.conversation_id == conversation.id
+    ).scalar() or 0
+    
+    # 获取消息（倒序，最新的在前）
+    messages = db.query(Message).filter(
+        Message.conversation_id == conversation.id
+    ).order_by(Message.created_at.desc()).offset(offset).limit(limit).all()
+    
+    # 反转消息列表，使其按时间正序（用于显示）
+    messages = list(reversed(messages))
+    
+    return {
+        "conversation_id": conversation.id,
+        "messages": [
+            {
+                "id": msg.id,
+                "role": msg.role,
+                "content": msg.content,
+                "created_at": msg.created_at.isoformat(),
+                "pronunciation_score": msg.pronunciation_score
+            }
+            for msg in messages
+        ],
+        "total_messages": total_messages,
+        "has_more": offset + limit < total_messages
+    }
 
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationResponse)

@@ -27,7 +27,7 @@
     </div>
     
     <!-- Messages Container -->
-    <div class="messages-container" ref="messagesContainer">
+    <div class="messages-container" ref="messagesContainer" @scroll="handleScroll">
       <!-- Empty State -->
       <div v-if="chatStore.messages.length === 0" class="empty-state">
         <div class="empty-icon animate-float">
@@ -50,6 +50,17 @@
       
       <!-- Messages -->
       <div v-else class="messages-list">
+        <!-- 加载更多指示器（顶部） -->
+        <div v-if="loadingMore" class="loading-more-top">
+          <el-icon class="is-loading"><Loading /></el-icon>
+          <span>加载历史消息...</span>
+        </div>
+        
+        <!-- 没有更多历史消息提示 -->
+        <div v-if="!hasMore && chatStore.messages.length > 0 && !isInitialLoad" class="no-more-top">
+          <span>已加载全部消息</span>
+        </div>
+        
         <!-- AI Status Indicator -->
         <div v-if="chatStore.loading || isAISpeaking" class="ai-status">
           <div class="status-orb" :class="{ 'speaking': isAISpeaking, 'thinking': chatStore.loading }"></div>
@@ -150,13 +161,6 @@
             style="display: none;"
           />
         </div>
-        
-        <!-- Show More Button -->
-        <div v-if="chatStore.messages.length > 5" class="show-more">
-          <button class="show-more-btn" @click="toggleHistory">
-            {{ showFullHistory ? '收起历史' : `查看全部 ${chatStore.messages.length} 条对话` }}
-          </button>
-        </div>
       </div>
     </div>
     
@@ -187,29 +191,35 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, reactive } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
 import { ElMessage } from 'element-plus'
-import { VideoPlay, VideoPause, Document, Connection } from '@element-plus/icons-vue'
+import { VideoPlay, VideoPause, Document, Connection, Loading } from '@element-plus/icons-vue'
 import MediaAudioRecorder from '@/components/MediaAudioRecorder.vue'
 import AudioPlayer from '@/components/AudioPlayer.vue'
 import axios from 'axios'
+import api from '@/services/api'
 
 const chatStore = useChatStore()
 const messagesContainer = ref(null)
 const isRecording = ref(false)
 const isAISpeaking = ref(false)
 const currentPlayingId = ref(null)
-const showFullHistory = ref(false)
 const audioPlayerRefs = ref({})
 const messageStates = reactive({})
 
+// 分页相关
+const loadingMore = ref(false)
+const hasMore = ref(true)
+const currentOffset = ref(0)
+const pageSize = ref(10)
+const isInitialLoad = ref(true)
+const previousScrollHeight = ref(0)
+
 const recentMessages = computed(() => {
-  if (showFullHistory.value) {
-    return chatStore.messages
-  }
-  return chatStore.messages.slice(-5)
+  // 直接返回所有消息，不再限制显示数量
+  return chatStore.messages
 })
 
 function formatMessage(content) {
@@ -358,10 +368,6 @@ async function translateMessage(message) {
   }
 }
 
-function toggleHistory() {
-  showFullHistory.value = !showFullHistory.value
-  nextTick(() => scrollToBottom())
-}
 
 function scrollToBottom() {
   nextTick(() => {
@@ -475,6 +481,113 @@ async function handleVoiceResult(payload) {
   }
 }
 
+async function loadMessages(conversationId, reset = false) {
+  console.log('loadMessages called:', { conversationId, reset, loadingMore: loadingMore.value, hasMore: hasMore.value })
+  
+  if (loadingMore.value || (!hasMore.value && !reset)) {
+    console.log('loadMessages early return:', { loadingMore: loadingMore.value, hasMore: hasMore.value })
+    return
+  }
+  
+  try {
+    loadingMore.value = true
+    
+    if (reset) {
+      currentOffset.value = 0
+      hasMore.value = true
+      chatStore.messages = []
+    }
+    
+    console.log('Fetching messages:', { offset: currentOffset.value, limit: pageSize.value })
+    
+    const response = await api.get(`/chat/conversations/${conversationId}/messages`, {
+      params: {
+        offset: currentOffset.value,
+        limit: pageSize.value
+      }
+    })
+    
+    console.log('API response:', response)
+    
+    if (reset) {
+      chatStore.messages = response.messages
+      isInitialLoad.value = false
+    } else {
+      // 向上加载历史消息，插入到数组开头
+      chatStore.messages.unshift(...response.messages)
+    }
+    
+    hasMore.value = response.has_more
+    currentOffset.value += response.messages.length
+    
+    console.log('After loading:', { 
+      messagesCount: chatStore.messages.length, 
+      hasMore: hasMore.value, 
+      currentOffset: currentOffset.value 
+    })
+    
+    return response.messages.length
+  } catch (error) {
+    console.error('加载消息失败:', error)
+    ElMessage.error('加载消息失败')
+    return 0
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+function handleScroll(event) {
+  const container = event.target
+  const scrollTop = container.scrollTop
+  
+  console.log('Scroll event:', {
+    scrollTop,
+    hasMore: hasMore.value,
+    loadingMore: loadingMore.value,
+    conversationId: chatStore.currentConversationId,
+    scrollHeight: container.scrollHeight,
+    clientHeight: container.clientHeight
+  })
+  
+  // 当滚动到顶部附近时加载更多历史消息
+  if (scrollTop < 100 && hasMore.value && !loadingMore.value && chatStore.currentConversationId) {
+    console.log('Triggering loadMoreHistory')
+    loadMoreHistory()
+  }
+}
+
+async function loadMoreHistory() {
+  if (!chatStore.currentConversationId) return
+  
+  // 记录当前滚动高度
+  previousScrollHeight.value = messagesContainer.value?.scrollHeight || 0
+  
+  const loadedCount = await loadMessages(chatStore.currentConversationId, false)
+  
+  if (loadedCount > 0) {
+    // 加载完成后，保持滚动位置
+    await nextTick()
+    if (messagesContainer.value) {
+      const newScrollHeight = messagesContainer.value.scrollHeight
+      const scrollDiff = newScrollHeight - previousScrollHeight.value
+      messagesContainer.value.scrollTop = scrollDiff
+    }
+  }
+}
+
+function scrollToRecorder() {
+  nextTick(() => {
+    // 滚动到底部（录音按钮位置）
+    scrollToBottom()
+    
+    // 可选：聚焦到录音按钮区域
+    const recorderElement = document.querySelector('.voice-control')
+    if (recorderElement) {
+      recorderElement.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
+  })
+}
+
 function handleVoiceError(error) {
   console.error('语音识别错误:', error)
   ElMessage.error('语音识别失败，请重试')
@@ -490,6 +603,10 @@ function handleVoiceStop() {
 
 function handleScenarioChange() {
   chatStore.clearMessages()
+  chatStore.currentConversationId = null
+  currentOffset.value = 0
+  hasMore.value = true
+  isInitialLoad.value = true
   ElMessage.success(`已切换到场景：${chatStore.selectedScenario}`)
 }
 
@@ -511,18 +628,65 @@ onMounted(async () => {
   const route = useRoute()
   const conversationId = route.query.id
   
+  console.log('Component mounted:', { conversationId })
+  
+  // 检查 ref 是否正确绑定
+  console.log('messagesContainer ref:', messagesContainer.value)
+  
+  // 手动添加滚动事件监听器（作为备选方案）
+  if (messagesContainer.value) {
+    console.log('Manually adding scroll event listener...')
+    messagesContainer.value.addEventListener('scroll', handleScroll, { passive: true })
+    console.log('Scroll event listener added')
+  }
+  
   if (conversationId) {
     try {
-      await chatStore.loadConversation(conversationId)
+      chatStore.currentConversationId = parseInt(conversationId)
+      await loadMessages(conversationId, true)
       await nextTick()
-      scrollToBottom()
+      
+      // 检查容器状态
+      if (messagesContainer.value) {
+        const container = messagesContainer.value
+        console.log('Container status:', {
+          exists: !!container,
+          scrollHeight: container.scrollHeight,
+          clientHeight: container.clientHeight,
+          offsetHeight: container.offsetHeight,
+          hasScrollbar: container.scrollHeight > container.clientHeight,
+          overflowY: window.getComputedStyle(container).overflowY,
+          messagesCount: chatStore.messages.length
+        })
+        
+        // 手动测试滚动事件
+        console.log('Testing manual scroll event...')
+        container.scrollTop = 50
+        setTimeout(() => {
+          container.scrollTop = 0
+          console.log('Manual scroll test completed')
+        }, 100)
+      } else {
+        console.error('messagesContainer ref is null!')
+      }
+      
+      scrollToRecorder()
     } catch (error) {
       console.error('加载会话失败:', error)
       ElMessage.error('加载会话失败')
     }
+  } else {
+    // 没有conversationId，直接定位到录音按钮
+    scrollToRecorder()
   }
-  
-  scrollToBottom()
+})
+
+onUnmounted(() => {
+  // 清理事件监听器
+  if (messagesContainer.value) {
+    messagesContainer.value.removeEventListener('scroll', handleScroll)
+    console.log('Scroll event listener removed')
+  }
 })
 </script>
 
@@ -619,9 +783,13 @@ onMounted(async () => {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-2xl) var(--space-xl);
+  max-height: calc(100vh - 300px); // 限制最大高度，确保能产生滚动条
+  min-height: 400px; // 最小高度
   
   @media (max-width: 768px) {
     padding: var(--space-xl) var(--space-lg);
+    max-height: calc(100vh - 250px);
+    min-height: 300px;
   }
 }
 
@@ -1000,29 +1168,6 @@ onMounted(async () => {
   }
 }
 
-.show-more {
-  text-align: center;
-  padding: var(--space-xl) 0;
-}
-
-.show-more-btn {
-  padding: var(--space-md) var(--space-xl);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  color: var(--text-secondary);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-base);
-  font-family: var(--font-body);
-  
-  &:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-    box-shadow: var(--shadow-sm);
-  }
-}
-
 .voice-control {
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
@@ -1066,6 +1211,30 @@ onMounted(async () => {
   margin-top: var(--space-lg);
   color: var(--text-tertiary);
   font-size: 0.875rem;
+}
+
+.loading-more-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-bottom: var(--space-md);
+  
+  .el-icon {
+    font-size: 1.25rem;
+  }
+}
+
+.no-more-top {
+  text-align: center;
+  padding: var(--space-lg);
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: var(--space-md);
 }
 </style>
 
