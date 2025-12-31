@@ -238,6 +238,11 @@ onMounted(async () => {
   font-size: 0.75rem;
   color: var(--text-tertiary);
   font-weight: 500;
+  
+  // 在中等屏幕宽度时隐藏副标题
+  @media (max-width: 1200px) {
+    display: none;
+  }
 }
 
 .nav-links {
@@ -264,6 +269,15 @@ onMounted(async () => {
   font-size: 0.9375rem;
   transition: all var(--transition-base);
   position: relative;
+  
+  // 在中等屏幕宽度时只显示图标
+  @media (max-width: 1200px) {
+    padding: var(--space-md);
+    
+    .nav-label {
+      display: none;
+    }
+  }
   
   &::after {
     content: '';
@@ -398,6 +412,11 @@ onMounted(async () => {
 .user-role {
   font-size: 0.75rem;
   color: var(--text-tertiary);
+  
+  // 在中等屏幕宽度时隐藏角色
+  @media (max-width: 1200px) {
+    display: none;
+  }
 }
 
 .dropdown-arrow {
