@@ -164,6 +164,19 @@
       </div>
     </div>
     
+    <!-- Scroll to Bottom Button -->
+    <transition name="fade-slide">
+      <div 
+        v-if="showScrollButton" 
+        class="scroll-to-bottom"
+        @click="scrollToBottom(true)"
+      >
+        <el-icon class="scroll-icon">
+          <ArrowDown />
+        </el-icon>
+      </div>
+    </transition>
+    
     <!-- Voice Control -->
     <div class="voice-control">
       <div class="control-container">
@@ -195,7 +208,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
 import { ElMessage } from 'element-plus'
-import { VideoPlay, VideoPause, Document, Connection, Loading } from '@element-plus/icons-vue'
+import { VideoPlay, VideoPause, Document, Connection, Loading, ArrowDown } from '@element-plus/icons-vue'
 import MediaAudioRecorder from '@/components/MediaAudioRecorder.vue'
 import AudioPlayer from '@/components/AudioPlayer.vue'
 import axios from 'axios'
@@ -208,6 +221,7 @@ const isAISpeaking = ref(false)
 const currentPlayingId = ref(null)
 const audioPlayerRefs = ref({})
 const messageStates = reactive({})
+const showScrollButton = ref(false)
 
 // 分页相关
 const loadingMore = ref(false)
@@ -369,10 +383,17 @@ async function translateMessage(message) {
 }
 
 
-function scrollToBottom() {
+function scrollToBottom(smooth = false) {
   nextTick(() => {
     if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      if (smooth) {
+        messagesContainer.value.scrollTo({
+          top: messagesContainer.value.scrollHeight,
+          behavior: 'smooth'
+        })
+      } else {
+        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      }
     }
   })
 }
@@ -549,15 +570,22 @@ async function loadMessages(conversationId, reset = false) {
 function handleScroll(event) {
   const container = event.target
   const scrollTop = container.scrollTop
+  const scrollHeight = container.scrollHeight
+  const clientHeight = container.clientHeight
   
   console.log('Scroll event:', {
     scrollTop,
     hasMore: hasMore.value,
     loadingMore: loadingMore.value,
     conversationId: chatStore.currentConversationId,
-    scrollHeight: container.scrollHeight,
-    clientHeight: container.clientHeight
+    scrollHeight,
+    clientHeight
   })
+  
+  // 检查是否需要显示"滚动到底部"按钮
+  // 当用户向上滚动且距离底部超过 200px 时显示按钮
+  const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+  showScrollButton.value = distanceFromBottom > 200 && chatStore.messages.length > 0
   
   // 当滚动到顶部附近时加载更多历史消息
   if (scrollTop < 100 && hasMore.value && !loadingMore.value && chatStore.currentConversationId) {
@@ -1245,6 +1273,70 @@ onUnmounted(() => {
   font-size: 0.875rem;
   border-bottom: 1px solid var(--border-color);
   margin-bottom: var(--space-md);
+}
+
+// 滚动到底部按钮
+.scroll-to-bottom {
+  position: fixed;
+  right: var(--space-2xl);
+  bottom: 180px;
+  width: 48px;
+  height: 48px;
+  background: var(--primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  transition: all var(--transition-base);
+  z-index: 100;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-xl);
+    background: var(--primary-dark);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  .scroll-icon {
+    font-size: 1.5rem;
+    color: white;
+  }
+  
+  @media (max-width: 768px) {
+    right: var(--space-lg);
+    bottom: 160px;
+    width: 44px;
+    height: 44px;
+    
+    .scroll-icon {
+      font-size: 1.25rem;
+    }
+  }
+  
+  @media (max-width: 860px) {
+    bottom: 240px; // 为底部导航栏留出空间
+  }
+}
+
+// 淡入淡出 + 滑动动画
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.3s ease;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(20px) scale(0.8);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(20px) scale(0.8);
 }
 </style>
 
